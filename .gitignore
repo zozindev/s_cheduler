@@ -7,6 +7,7 @@ venv/
 
 # Project specific
 spec.md
+history.md
 *.sh
 logs/*.log
 tests/temp_data/
