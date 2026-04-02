@@ -104,19 +104,19 @@ class GUIManager:
         # 입력 필드들
         tk.Label(popup, text="작업 이름 (Unique):").grid(row=0, column=0, sticky=tk.W, padx=10, pady=5)
         ent_name = tk.Entry(popup)
-        ent_name.grid(row=0, column=1, fill=tk.X, padx=10, pady=5)
+        ent_name.grid(row=0, column=1, sticky=tk.EW, padx=10, pady=5)
         if task:
             ent_name.insert(0, task.task_name)
             ent_name.config(state="disabled" if task else "normal")
 
         tk.Label(popup, text="실행 시각 (HH:MM):").grid(row=1, column=0, sticky=tk.W, padx=10, pady=5)
         ent_time = tk.Entry(popup)
-        ent_time.grid(row=1, column=1, fill=tk.X, padx=10, pady=5)
+        ent_time.grid(row=1, column=1, sticky=tk.EW, padx=10, pady=5)
         if task: ent_time.insert(0, task.execution_time)
 
         tk.Label(popup, text="파일 절대 경로:").grid(row=2, column=0, sticky=tk.W, padx=10, pady=5)
         path_frame = tk.Frame(popup)
-        path_frame.grid(row=2, column=1, fill=tk.X, padx=10, pady=5)
+        path_frame.grid(row=2, column=1, sticky=tk.EW, padx=10, pady=5)
         ent_path = tk.Entry(path_frame)
         ent_path.pack(side=tk.LEFT, fill=tk.X, expand=True)
         if task: ent_path.insert(0, task.file_path)
@@ -136,7 +136,7 @@ class GUIManager:
         # 이메일 리스트
         tk.Label(popup, text="수신 이메일 (쉼표로 구분):").grid(row=4, column=0, sticky=tk.W, padx=10, pady=5)
         ent_emails = tk.Entry(popup)
-        ent_emails.grid(row=4, column=1, fill=tk.X, padx=10, pady=5)
+        ent_emails.grid(row=4, column=1, sticky=tk.EW, padx=10, pady=5)
         if task: ent_emails.insert(0, ", ".join(task.recipients))
 
         def save():
