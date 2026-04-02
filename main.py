@@ -73,13 +73,15 @@ class SchedulerEngine:
                     wait_seconds -= sleep_time
 
                     # 10초마다 또는 루프가 갱신될 때 최신 스케줄 재확인
-                    # 만약 더 빨리 실행해야 할 다른 작업이 생겼다면 대기 중단 후 다시 루프 시작
+                    # 만약 작업 이름이 바뀌었거나, 동일 작업이라도 실행 시각이 변경되었다면 대기 중단 후 다시 루프 시작
                     if int(wait_seconds) % 10 == 0:
                         new_task = self.cm.get_next_task()
-                        if new_task and new_task.task_name != task.task_name:
-                            # 다른 작업(아마도 더 빠른 작업)이 생겼다면 즉시 루프 재시작
-                            logger.info(f"새로운 스케줄 감지됨: {new_task.task_name}. 대기를 중단하고 갱신합니다.")
-                            break
+                        if new_task:
+                            # 이름이 다르거나, 이름은 같은데 실행 시각이 달라진 경우 (수정된 경우)
+                            if (new_task.task_name != task.task_name or 
+                                new_task.execution_time != task.execution_time):
+                                logger.info(f"스케줄 변경 감지됨: {new_task.task_name} ({new_task.execution_time}). 대기를 갱신합니다.")
+                                break
 
                 # 만약 wait_seconds가 0이 되어 정상 종료된 것이 아니라면 (break 등에 의해)
                 # 실행을 건너뛰고 다시 위로 올라가서 get_next_task() 실행
