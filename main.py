@@ -66,26 +66,31 @@ class SchedulerEngine:
                     self.pm.set_wakeup_timer(int(wait_seconds - 10), enabled=task.wakeup_enabled)
 
                 # 대기 (1초 단위로 쪼개서 대기하며 실시간 스케줄 변경 감시)
+                last_check_time = time.time()
                 while wait_seconds > 0 and self.running:
                     # 1초마다 대기하면서 새로운 더 빠른 스케줄이 있는지 확인
+                    sleep_start = time.time()
                     sleep_time = min(1, wait_seconds)
                     time.sleep(sleep_time)
-                    wait_seconds -= sleep_time
+                    
+                    # 실제 흐른 시간만큼 wait_seconds 차감 (정밀도 향상)
+                    elapsed = time.time() - sleep_start
+                    wait_seconds -= elapsed
 
-                    # 10초마다 또는 루프가 갱신될 때 최신 스케줄 재확인
-                    # 만약 작업 이름이 바뀌었거나, 동일 작업이라도 실행 시각이 변경되었다면 대기 중단 후 다시 루프 시작
-                    if int(wait_seconds) % 10 == 0:
+                    # 5초마다 최신 스케줄 재확인 (Modulo 방식 대신 시간 차이 방식 사용)
+                    if time.time() - last_check_time >= 5:
+                        last_check_time = time.time()
                         new_task = self.cm.get_next_task()
                         if new_task:
                             # 이름이 다르거나, 이름은 같은데 실행 시각이 달라진 경우 (수정된 경우)
                             if (new_task.task_name != task.task_name or 
                                 new_task.execution_time != task.execution_time):
                                 logger.info(f"스케줄 변경 감지됨: {new_task.task_name} ({new_task.execution_time}). 대기를 갱신합니다.")
+                                wait_seconds = -1 # 루프 탈출 신호
                                 break
-
-                # 만약 wait_seconds가 0이 되어 정상 종료된 것이 아니라면 (break 등에 의해)
-                # 실행을 건너뛰고 다시 위로 올라가서 get_next_task() 실행
-                if wait_seconds > 0.5:
+                
+                # 만약 스케줄 변경이나 중단 신호에 의해 루프를 빠져나왔다면
+                if wait_seconds < -0.5 or not self.running:
                     continue
 
                 if not self.running:
