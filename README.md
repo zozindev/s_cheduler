@@ -60,7 +60,7 @@ GMAIL_APP_PASSWORD=your_google_app_password
 ### 1. 프로그램 실행
 **시스템 웨이크업 기능을 사용하려면 반드시 "관리자 권한"으로 명령 프롬프트나 터미널을 실행한 후 프로그램을 구동하세요.**
 ```bash
-python src/main.py
+python main.py
 ```
 
 ### 2. 스케줄 등록 및 수정
