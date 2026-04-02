@@ -60,8 +60,8 @@ class ConfigManager:
 
     def get_next_task(self) -> Optional[Task]:
         """현재 시각 기준으로 가장 빨리 실행되어야 할 작업을 찾습니다."""
-        # 파일에서 최신 데이터 로드
-        self.load_config()
+        # GUI와 메모리를 공유하므로 매번 파일을 읽을 필요가 없습니다.
+        # 초기 로딩은 __init__에서 수행됩니다.
         
         if not self.tasks:
             return None

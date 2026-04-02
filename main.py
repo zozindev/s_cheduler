@@ -67,30 +67,34 @@ class SchedulerEngine:
 
                 # 대기 (1초 단위로 쪼개서 대기하며 실시간 스케줄 변경 감시)
                 last_check_time = time.time()
+                is_modified = False
+                
                 while wait_seconds > 0 and self.running:
                     # 1초마다 대기하면서 새로운 더 빠른 스케줄이 있는지 확인
                     sleep_start = time.time()
                     sleep_time = min(1, wait_seconds)
                     time.sleep(sleep_time)
                     
-                    # 실제 흐른 시간만큼 wait_seconds 차감 (정밀도 향상)
+                    # 실제 흐른 시간만큼 wait_seconds 차감
                     elapsed = time.time() - sleep_start
                     wait_seconds -= elapsed
 
-                    # 5초마다 최신 스케줄 재확인 (Modulo 방식 대신 시간 차이 방식 사용)
-                    if time.time() - last_check_time >= 5:
+                    # 2초마다 최신 스케줄 재확인 (성능과 반응성 사이의 최적점)
+                    if time.time() - last_check_time >= 2:
                         last_check_time = time.time()
                         new_task = self.cm.get_next_task()
-                        if new_task:
-                            # 이름이 다르거나, 이름은 같은데 실행 시각이 달라진 경우 (수정된 경우)
-                            if (new_task.task_name != task.task_name or 
-                                new_task.execution_time != task.execution_time):
-                                logger.info(f"스케줄 변경 감지됨: {new_task.task_name} ({new_task.execution_time}). 대기를 갱신합니다.")
-                                wait_seconds = -1 # 루프 탈출 신호
-                                break
+                        
+                        # 만약 작업이 없거나, 다른 작업이 되었거나, 같은 작업이라도 시간이 바뀐 경우
+                        if not new_task or \
+                           new_task.task_name != task.task_name or \
+                           new_task.execution_time != task.execution_time:
+                            
+                            logger.info("스케줄 변경이 감지되어 대기를 갱신합니다.")
+                            is_modified = True
+                            break
                 
                 # 만약 스케줄 변경이나 중단 신호에 의해 루프를 빠져나왔다면
-                if wait_seconds < -0.5 or not self.running:
+                if is_modified or not self.running:
                     continue
 
                 if not self.running:
