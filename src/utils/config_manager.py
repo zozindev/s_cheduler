@@ -60,6 +60,9 @@ class ConfigManager:
 
     def get_next_task(self) -> Optional[Task]:
         """현재 시각 기준으로 가장 빨리 실행되어야 할 작업을 찾습니다."""
+        # 파일에서 최신 데이터 로드
+        self.load_config()
+        
         if not self.tasks:
             return None
 

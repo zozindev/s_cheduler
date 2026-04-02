@@ -38,14 +38,14 @@ class SchedulerEngine:
     def run(self):
         """스케줄링 메인 루프"""
         logger.info("스케줄링 엔진 시작...")
-        
+
         while self.running:
             try:
                 task = self.cm.get_next_task()
-                
+
                 if not task:
-                    logger.info("등록된 작업이 없습니다. 1분 후 재확인합니다.")
-                    time.sleep(60)
+                    logger.info("등록된 작업이 없습니다. 30초 후 재확인합니다.")
+                    time.sleep(30)
                     continue
 
                 # 실행 시간 계산
@@ -58,26 +58,39 @@ class SchedulerEngine:
                     target_datetime += timedelta(days=1)
 
                 wait_seconds = (target_datetime - now).total_seconds()
-                
+
                 logger.info(f"다음 작업: [{task.task_name}] - 실행 예정: {target_datetime} ({int(wait_seconds)}초 후)")
 
                 # 웨이크업 타이머 설정 (작업 시작 10초 전으로 설정하여 여유 확보)
                 if wait_seconds > 30:
                     self.pm.set_wakeup_timer(int(wait_seconds - 10), enabled=task.wakeup_enabled)
-                
-                # 대기 (10초 단위로 쪼개서 대기하여 프로그램 종료에 즉각 반응)
+
+                # 대기 (1초 단위로 쪼개서 대기하며 실시간 스케줄 변경 감시)
                 while wait_seconds > 0 and self.running:
-                    sleep_time = min(10, wait_seconds)
+                    # 1초마다 대기하면서 새로운 더 빠른 스케줄이 있는지 확인
+                    sleep_time = min(1, wait_seconds)
                     time.sleep(sleep_time)
                     wait_seconds -= sleep_time
-                    
-                    # 도중에 스케줄이 바뀌었을 수도 있으므로 루프를 빠져나가서 다시 get_next_task() 실행
-                    # 하지만 여기서는 단순화를 위해 wait_seconds가 0이 될 때까지 대기
-                
+
+                    # 10초마다 또는 루프가 갱신될 때 최신 스케줄 재확인
+                    # 만약 더 빨리 실행해야 할 다른 작업이 생겼다면 대기 중단 후 다시 루프 시작
+                    if int(wait_seconds) % 10 == 0:
+                        new_task = self.cm.get_next_task()
+                        if new_task and new_task.task_name != task.task_name:
+                            # 다른 작업(아마도 더 빠른 작업)이 생겼다면 즉시 루프 재시작
+                            logger.info(f"새로운 스케줄 감지됨: {new_task.task_name}. 대기를 중단하고 갱신합니다.")
+                            break
+
+                # 만약 wait_seconds가 0이 되어 정상 종료된 것이 아니라면 (break 등에 의해)
+                # 실행을 건너뛰고 다시 위로 올라가서 get_next_task() 실행
+                if wait_seconds > 0.5:
+                    continue
+
                 if not self.running:
                     break
 
                 # 작업 실행
+
                 logger.info(f"작업 실행 시작: {task.task_name}")
                 result = self.ex.execute(task.file_path)
                 
