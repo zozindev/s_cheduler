@@ -3,6 +3,8 @@
         "task_name": "Test_Batch_Task",
         "execution_time": "09:00",
         "file_path": "C:\\path\\to\\your\\script.bat",
+        "wakeup_enabled": true,
+        "recipients": [],
         "last_run_status": "Not Started",
         "last_run_time": null
     }

@@ -4,17 +4,10 @@ import threading
 import logging
 from datetime import datetime, timedelta
 
-# 필수 디렉토리 생성 (오류 방지)
+# 필수 디렉토리 생성 및 로깅 설정 (가장 먼저 수행)
 os.makedirs("logs", exist_ok=True)
 os.makedirs("data", exist_ok=True)
 
-from src.core.power_manager import PowerManager
-from src.core.executor import TaskExecutor
-from src.utils.config_manager import ConfigManager
-from src.utils.mail_sender import NotificationSystem
-from src.gui_manager import GUIManager
-
-# 로깅 설정
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -24,6 +17,12 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger("MainLoop")
+
+from src.core.power_manager import PowerManager
+from src.core.executor import TaskExecutor
+from src.utils.config_manager import ConfigManager
+from src.utils.mail_sender import NotificationSystem
+from src.gui_manager import GUIManager
 
 class SchedulerEngine:
     """백그라운드에서 스케줄을 감시하고 작업을 실행하는 엔진"""
@@ -110,7 +109,9 @@ class SchedulerEngine:
                 self.cm.update_task_status(task.task_name, status)
                 
                 # 이메일 알림 발송 (비동기 처리 권장되나 여기서는 동기 처리)
+                logger.info(f"이메일 알림 발송 시도: {task.task_name} (수신자: {task.recipients})")
                 self.ns.send_report(task.task_name, result, recipients=task.recipients)
+                logger.info(f"이메일 알림 발송 호출 완료: {task.task_name}")
                 
                 # 다음 작업을 위해 짧은 휴식 (중복 실행 방지용 Jitter)
                 time.sleep(5)
