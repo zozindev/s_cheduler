@@ -122,7 +122,7 @@ class GUIManager:
         ctk.CTkButton(
             btn_frame, text="🗑 삭제", width=100, fg_color="#d32f2f", hover_color="#b71c1c",
             command=self._delete_task
-        ).pack(side=tk.LEFT, padx=5)
+        ).pack(side=ctk.LEFT, padx=5)
 
         # 유틸리티 버튼 (오른쪽)
         ctk.CTkButton(
