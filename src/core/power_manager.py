@@ -29,7 +29,6 @@ class PowerManager:
     def set_sleep_prevention(self, enabled: bool):
         """
         시스템이 자동으로 절전 모드에 진입하는 것을 방지하거나 다시 허용합니다.
-        관리자 권한이 필요 없는 Win32 API입니다.
         
         Args:
             enabled (bool): True이면 절전 방지 활성화, False이면 다시 허용
@@ -37,19 +36,24 @@ class PowerManager:
         if not self._is_windows:
             return
 
-        # ES_CONTINUOUS (0x80000000): 상태를 계속 유지
+        # ES_CONTINUOUS (0x80000000): 상태를 계속 유지 (필수)
         # ES_SYSTEM_REQUIRED (0x00000001): 시스템(CPU)을 깨어있는 상태로 유지
-        # ES_AWAYMODE_REQUIRED (0x00000040): 사용자에게는 절전처럼 보여도 실제로는 작동 유지
+        # ES_DISPLAY_REQUIRED (0x00000002): 디스플레이(모니터)를 켜진 상태로 유지
         
-        flags = 0x80000000  # ES_CONTINUOUS
         if enabled:
-            flags |= 0x00000001 | 0x00000040
-            logger.info("절전 모드 진입 방지(Stay-Awake) 활성화됨")
+            # 시스템과 디스플레이 모두 깨어있도록 설정
+            flags = 0x80000000 | 0x00000001 | 0x00000002
+            logger.info("절전 모드 진입 방지(Stay-Awake) 활성화됨 (시스템 + 디스플레이)")
         else:
+            # ES_CONTINUOUS만 단독으로 호출하여 이전 상태를 리셋
+            flags = 0x80000000
             logger.info("절전 모드 진입 방지 비활성화됨 (시스템 기본 설정 따름)")
 
         try:
-            ctypes.windll.kernel32.SetThreadExecutionState(flags)
+            # Win32 API 호출
+            result = ctypes.windll.kernel32.SetThreadExecutionState(flags)
+            if result == 0:
+                logger.error("SetThreadExecutionState 호출 실패 (결과값 0)")
         except Exception as e:
             logger.error(f"절전 상태 제어 중 오류 발생: {e}")
 

@@ -1,13 +1,14 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from src.utils.config_manager import ConfigManager
+from src.core.power_manager import PowerManager
 from src.models.task import Task
 import os
 
 class GUIManager:
     """슼케줄러의 GUI를 관리하는 클래스 (tkinter 기반)"""
 
-    def __init__(self, config_manager: ConfigManager, power_manager: None):
+    def __init__(self, config_manager: ConfigManager, power_manager: PowerManager):
         self.cm = config_manager
         self.pm = power_manager  # PowerManager 인스턴스 저장
         self.root = tk.Tk()
