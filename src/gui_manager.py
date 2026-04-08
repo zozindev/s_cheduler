@@ -85,6 +85,9 @@ class GUIManager:
         columns = ("task_name", "execution_time", "file_path", "wakeup", "last_status")
         self.tree = ttk.Treeview(list_frame, columns=columns, show="headings", style="Treeview")
         
+        # 더블 클릭 이벤트 바인딩
+        self.tree.bind("<Double-1>", lambda event: self._edit_task_window())
+        
         self.tree.heading("task_name", text="작업명")
         self.tree.heading("execution_time", text="실행 시각")
         self.tree.heading("file_path", text="파일 경로")
@@ -124,9 +127,9 @@ class GUIManager:
             command=self._delete_task
         ).pack(side=ctk.LEFT, padx=5)
 
-        # 유틸리티 버튼 (오른쪽)
+        # 유틸리티 버튼 (오른쪽) - 초록색 강조 버튼으로 변경
         ctk.CTkButton(
-            btn_frame, text="🔄 새로고침", width=100, fg_color="transparent", border_width=1,
+            btn_frame, text="🔄 새로고침", width=120, fg_color="#2e7d32", hover_color="#1b5e20",
             command=self.refresh_list
         ).pack(side=ctk.RIGHT, padx=5)
 
@@ -165,17 +168,18 @@ class GUIManager:
         """작업 추가/수정용 모던 팝업"""
         popup = ctk.CTkToplevel(self.root)
         popup.title(title)
-        popup.geometry("550x450")
+        popup.geometry("600x530") # 크기 확대 (잘림 방지)
         popup.after(100, popup.lift) # 팝업을 맨 위로
 
-        # 중앙 정렬을 위한 컨테이너
+        # 중앙 정렬을 위한 컨테이너 (반응형 설정)
         container = ctk.CTkFrame(popup, fg_color="transparent")
         container.pack(fill=ctk.BOTH, expand=True, padx=30, pady=20)
+        container.columnconfigure(0, weight=1) # 가로 확장 가능하게 설정
 
         # 입력 필드들
         def create_entry(label_text, row, initial_value="", is_disabled=False):
-            ctk.CTkLabel(container, text=label_text).grid(row=row, column=0, sticky="w", pady=(10, 0))
-            entry = ctk.CTkEntry(container, width=300, placeholder_text=label_text)
+            ctk.CTkLabel(container, text=label_text, font=ctk.CTkFont(weight="bold")).grid(row=row, column=0, sticky="w", pady=(10, 0))
+            entry = ctk.CTkEntry(container, placeholder_text=label_text)
             entry.grid(row=row+1, column=0, columnspan=2, sticky="ew", pady=(5, 10))
             if initial_value:
                 entry.insert(0, initial_value)
@@ -187,9 +191,10 @@ class GUIManager:
         ent_name = create_entry("작업 이름 (고유 식별값)", 0, task.task_name if task else "")
         ent_time = create_entry("실행 시각 (예: 14:30)", 2, task.execution_time if task else "")
         
-        ctk.CTkLabel(container, text="파일 경로").grid(row=4, column=0, sticky="w", pady=(10, 0))
+        ctk.CTkLabel(container, text="파일 경로", font=ctk.CTkFont(weight="bold")).grid(row=4, column=0, sticky="w", pady=(10, 0))
         path_frame = ctk.CTkFrame(container, fg_color="transparent")
         path_frame.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(5, 10))
+        path_frame.columnconfigure(0, weight=1) # 파일 경로창 확장성 부여
         
         ent_path = ctk.CTkEntry(path_frame, placeholder_text="선택된 파일 경로...")
         ent_path.pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=(0, 10))
@@ -204,11 +209,11 @@ class GUIManager:
         ctk.CTkButton(path_frame, text="찾기", width=80, command=browse_file).pack(side=ctk.RIGHT)
 
         wakeup_var = ctk.BooleanVar(value=task.wakeup_enabled if task else True)
-        ctk.CTkCheckBox(container, text="하드웨어 웨이크업(Wake-up) 사용", variable=wakeup_var).grid(row=6, column=0, sticky="w", pady=10)
+        ctk.CTkCheckBox(container, text="하드웨어 웨이크업(Wake-up) 사용", variable=wakeup_var).grid(row=6, column=0, sticky="w", pady=15)
 
-        ctk.CTkLabel(container, text="알림 수신 이메일 (쉼표 구분)").grid(row=7, column=0, sticky="w", pady=(10, 0))
+        ctk.CTkLabel(container, text="알림 수신 이메일 (쉼표 구분)", font=ctk.CTkFont(weight="bold")).grid(row=7, column=0, sticky="w", pady=(10, 0))
         ent_emails = ctk.CTkEntry(container, placeholder_text="example@test.com, user2@test.com")
-        ent_emails.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(5, 20))
+        ent_emails.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(5, 25))
         if task: ent_emails.insert(0, ", ".join(task.recipients))
 
         def save():
