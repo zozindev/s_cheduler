@@ -22,7 +22,7 @@ class GUIManager:
         
         # 메인 윈도우 설정
         self.root = ctk.CTk()
-        self.root.title("슼케줄러 (S-cheduler) v2.2 - Modern UI")
+        self.root.title("슼케줄러 (S-cheduler) v2.2")
         self.root.geometry("900x550")
         
         # 레이아웃 구성
@@ -168,7 +168,7 @@ class GUIManager:
         """작업 추가/수정용 모던 팝업"""
         popup = ctk.CTkToplevel(self.root)
         popup.title(title)
-        popup.geometry("600x530") # 크기 확대 (잘림 방지)
+        popup.geometry("600x700") # 크기 확대 (잘림 방지)
         popup.after(100, popup.lift) # 팝업을 맨 위로
 
         # 중앙 정렬을 위한 컨테이너 (반응형 설정)
