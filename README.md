@@ -10,7 +10,7 @@
 *   **GUI Framework**: `tkinter` (표준 라이브러리)
 *   **System API**: Win32 API (`ctypes`를 통한 kernel32.dll, shell32.dll 연동)
 *   **Process Management**: `subprocess`
-*   **Communication**: `smtplib` (Gmail SMTP), `email.mime`
+*   **Communication**: `requests` (Teams Webhook), `smtplib` (Gmail SMTP)
 *   **Configuration**: JSON, `python-dotenv`
 
 ---
@@ -20,14 +20,15 @@
 1.  **시스템 웨이크업 (Wake-up Timer)**:
     *   PC가 절전 모드 상태일 때, 하드웨어 타이머를 설정하여 작업 실행 직전에 시스템을 자동으로 깨웁니다. (Win32 API `SetWaitableTimer` 활용)
 2.  **절전 모드 진입 방지 (Stay-Awake)**:
-    *   프로그램 실행 중 PC가 자동으로 잠들지 않도록 제어하는 토글 기능을 제공합니다. (관리자 권한 불필요)
-3.  **멀티 스케줄링 관리**:
+    *   프로그램 실행 중 PC가 자동으로 잠들지 않도록 제어하는 토글 기능을 제공합니다. 시스템뿐만 아니라 **디스플레이(모니터)도 함께 강제 유지**하여 안정성을 높였습니다.
+3.  **하이브리드 알림 시스템 (Teams & Email)**:
+    *   **MS Teams**: 사내 보안망이나 방화벽 환경에서도 안전하게 작동하는 Webhook 방식 알림을 지원합니다.
+    *   **Gmail**: 전통적인 이메일 리포팅을 지원하며, Teams 설정이 없을 경우 보조 수단으로 작동합니다.
+4.  **멀티 스케줄링 관리**:
     *   JSON 기반의 데이터 구조를 통해 여러 개의 작업을 독립적으로 관리합니다.
-    *   작업별 실행 시각, 파일 경로, 절전 해제 여부, 개별 수신 이메일 설정을 지원합니다.
-4.  **범용 실행 파일 지원**:
+    *   작업별 실행 시각, 파일 경로, 절전 해제 여부 설정을 지원합니다.
+5.  **범용 실행 파일 지원**:
     *   `.bat`, `.cmd` 배치 파일뿐만 아니라 `.exe`, `.py` 등 실행 가능한 모든 파일을 지원합니다.
-5.  **이메일 리포팅 시스템**:
-    *   작업 완료 후 성공/실패 여부, 실행 로그(stdout/stderr), 반환 코드를 지정된 다수의 수신자에게 즉시 발송합니다.
 6.  **직관적인 GUI**:
     *   스케줄 목록 조회, 추가, 수정, 삭제 기능을 시각적으로 제공하여 누구나 쉽게 사용 가능합니다.
 
@@ -42,9 +43,10 @@ pip install -r requirements.txt
 ```
 
 ### 2. 보안 설정 (.env)
-알림 기능(Teams 또는 이메일)을 위해 프로젝트 루트에 `.env` 파일을 생성하고 정보를 입력합니다.
+알림 기능을 위해 프로젝트 루트에 `.env` 파일을 생성하고 정보를 입력합니다.
 
 *   **MS Teams 알림 (권장 ⭐)**: 회사 방화벽 환경에서도 안전합니다.
+    *   **설정 방법**: Teams 채널 우클릭 -> 커넥터(또는 워크플로) -> Incoming Webhook 추가 -> 생성된 URL 복사.
     ```env
     TEAMS_WEBHOOK_URL=https://outlook.office.com/webhook/...
     ```
@@ -85,8 +87,8 @@ python main.py
 
 ## 📂 프로젝트 구조 (Project Structure)
 
-*   `main.py`: 프로그램 진입점 및 백그라운드 엔진 (기존 src/에서 루트로 이동)
-*   `src/gui_manager.py`: 사용자 인터페이스 관리
+*   `main.py`: 프로그램 진입점 및 스케줄링 엔진 (GUI & 백그라운드 통합)
+*   `src/gui_manager.py`: 사용자 인터페이스 관리 (tkinter)
 *   `src/core/`: 전원 제어(`power_manager.py`) 및 작업 실행(`executor.py`) 핵심 로직
 *   `src/utils/`: 설정 관리(`config_manager.py`) 및 알림 전송(`notification_manager.py`)
 *   `data/`: `s_cheduler_config.json` 스케줄 저장소
