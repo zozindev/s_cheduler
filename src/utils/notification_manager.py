@@ -67,7 +67,7 @@ class NotificationSystem:
         status_str = "성공 ✅" if success else "실패 ❌"
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # Teams 전용 Adaptive Card 형식 (가독성 좋음)
+        # Teams 전용 Adaptive Card 형식 (간결한 버전)
         payload = {
             "@type": "MessageCard",
             "@context": "http://schema.org/extensions",
@@ -78,21 +78,11 @@ class NotificationSystem:
                 "activitySubtitle": f"작업 이름: **{task_name}**",
                 "facts": [
                     {"name": "상태", "value": status_str},
-                    {"name": "실행 시각", "value": timestamp},
-                    {"name": "반환 코드", "value": str(result.get('return_code', '알 수 없음'))}
+                    {"name": "실행 시각", "value": timestamp}
                 ],
                 "markdown": True
             }]
         }
-
-        # 상세 로그/에러 메시지 추가
-        detail_msg = result.get('output') if success else result.get('error')
-        if detail_msg:
-            # 너무 길면 잘라서 보냄
-            payload["sections"].append({
-                "activityTitle": "상세 내용",
-                "text": f"```{detail_msg[:1000]}```"
-            })
 
         try:
             logger.info(f"Teams 알림 전송 시도: {task_name}")
