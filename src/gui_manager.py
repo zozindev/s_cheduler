@@ -187,10 +187,41 @@ class GUIManager:
                 entry.configure(state="disabled", fg_color="gray25")
             return entry
 
-        # 작업 이름 수정을 허용하기 위해 is_disabled=False로 설정 (기본값)
+        # 작업 이름
         ent_name = create_entry("작업 이름 (고유 식별값)", 0, task.task_name if task else "")
-        ent_time = create_entry("실행 시각 (예: 14:30)", 2, task.execution_time if task else "")
         
+        # 실행 시각 설정 UI (HH:MM Spinner)
+        ctk.CTkLabel(container, text="실행 시각 설정 (HH:MM)", font=ctk.CTkFont(weight="bold")).grid(row=2, column=0, sticky="w", pady=(10, 0))
+        time_frame = ctk.CTkFrame(container, fg_color="transparent")
+        time_frame.grid(row=3, column=0, sticky="w", pady=(5, 10))
+
+        initial_hh, initial_mm = ("00", "00")
+        if task and ":" in task.execution_time:
+            initial_hh, initial_mm = task.execution_time.split(":")
+
+        def create_spinner(parent, initial_val, max_val):
+            val_var = ctk.StringVar(value=initial_val)
+            
+            def change_val(delta):
+                try:
+                    current = int(val_var.get())
+                    new_val = (current + delta) % (max_val + 1)
+                    val_var.set(f"{new_val:02d}")
+                except ValueError:
+                    val_var.set("00")
+
+            frame = ctk.CTkFrame(parent, fg_color="gray30")
+            frame.pack(side=ctk.LEFT, padx=2)
+            
+            ctk.CTkButton(frame, text="▲", width=35, height=25, fg_color="transparent", hover_color="gray40", command=lambda: change_val(1)).pack()
+            ctk.CTkLabel(frame, textvariable=val_var, font=ctk.CTkFont(size=18, weight="bold")).pack(pady=2)
+            ctk.CTkButton(frame, text="▼", width=35, height=25, fg_color="transparent", hover_color="gray40", command=lambda: change_val(-1)).pack()
+            return val_var
+
+        hh_var = create_spinner(time_frame, initial_hh, 23)
+        ctk.CTkLabel(time_frame, text=":", font=ctk.CTkFont(size=24, weight="bold")).pack(side=ctk.LEFT, padx=10)
+        mm_var = create_spinner(time_frame, initial_mm, 59)
+
         ctk.CTkLabel(container, text="파일 경로", font=ctk.CTkFont(weight="bold")).grid(row=4, column=0, sticky="w", pady=(10, 0))
         path_frame = ctk.CTkFrame(container, fg_color="transparent")
         path_frame.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(5, 10))
@@ -211,16 +242,23 @@ class GUIManager:
         wakeup_var = ctk.BooleanVar(value=task.wakeup_enabled if task else True)
         ctk.CTkCheckBox(container, text="하드웨어 웨이크업(Wake-up) 사용", variable=wakeup_var).grid(row=6, column=0, sticky="w", pady=15)
 
-        ctk.CTkLabel(container, text="알림 수신 이메일 (쉼표 구분)", font=ctk.CTkFont(weight="bold")).grid(row=7, column=0, sticky="w", pady=(10, 0))
-        ent_emails = ctk.CTkEntry(container, placeholder_text="example@test.com, user2@test.com")
-        ent_emails.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(5, 25))
-        if task: ent_emails.insert(0, ", ".join(task.recipients))
+        # 이메일 수신자 (Textbox로 변경하여 줄바꿈 지원)
+        ctk.CTkLabel(container, text="알림 수신 이메일 (쉼표 또는 줄바꿈으로 구분)", font=ctk.CTkFont(weight="bold")).grid(row=7, column=0, sticky="w", pady=(10, 0))
+        txt_emails = ctk.CTkTextbox(container, height=80)
+        txt_emails.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(5, 25))
+        if task:
+            txt_emails.insert("1.0", "\n".join(task.recipients))
 
         def save():
-            name, time_val, path = ent_name.get().strip(), ent_time.get().strip(), ent_path.get().strip()
-            emails = [e.strip() for e in ent_emails.get().split(",") if e.strip()]
+            name = ent_name.get().strip()
+            time_val = f"{hh_var.get()}:{mm_var.get()}"
+            path = ent_path.get().strip()
             
-            if not all([name, time_val, path]):
+            # 이메일 처리 (쉼표와 줄바꿈 모두 대응)
+            raw_email_text = txt_emails.get("1.0", ctk.END).replace(",", "\n")
+            emails = [e.strip() for e in raw_email_text.split("\n") if e.strip()]
+            
+            if not all([name, path]):
                 messagebox.showerror("입력 오류", "모든 필수 항목을 입력해주세요.")
                 return
             
@@ -228,7 +266,6 @@ class GUIManager:
             existing_names = [t.task_name for t in self.cm.tasks]
             
             if task: # 수정 모드
-                # 이름이 변경되었는데, 변경된 이름이 이미 다른 작업에서 사용 중인 경우
                 if name != task.task_name and name in existing_names:
                     messagebox.showerror("중복 오류", f"'{name}' 이름은 이미 사용 중입니다.")
                     return
