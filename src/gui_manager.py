@@ -210,12 +210,46 @@ class GUIManager:
                 except ValueError:
                     val_var.set("00")
 
-            frame = ctk.CTkFrame(parent, fg_color="gray30")
-            frame.pack(side=ctk.LEFT, padx=2)
+            frame = ctk.CTkFrame(parent, fg_color="transparent") # 프레임 배경 투명하게
+            frame.pack(side=ctk.LEFT, padx=5)
             
-            ctk.CTkButton(frame, text="▲", width=35, height=25, fg_color="transparent", hover_color="gray40", command=lambda: change_val(1)).pack()
-            ctk.CTkLabel(frame, textvariable=val_var, font=ctk.CTkFont(size=18, weight="bold")).pack(pady=2)
-            ctk.CTkButton(frame, text="▼", width=35, height=25, fg_color="transparent", hover_color="gray40", command=lambda: change_val(-1)).pack()
+            # 상단 버튼
+            ctk.CTkButton(frame, text="▲", width=45, height=25, fg_color="#3b3b3b", hover_color="#505050", command=lambda: change_val(1)).pack(pady=2)
+            
+            # 직접 입력 가능한 Entry (중앙 정렬, 밝은 글씨)
+            entry = ctk.CTkEntry(
+                frame, 
+                textvariable=val_var, 
+                width=55, 
+                height=35,
+                justify="center", 
+                font=ctk.CTkFont(size=20, weight="bold"),
+                fg_color="#2b2b2b",
+                text_color="white",
+                border_color="#565b5e"
+            )
+            entry.pack(pady=2)
+            
+            # 입력 값 검증 (숫자만, 최대값 제한)
+            def validate_input(*args):
+                val = val_var.get()
+                if not val.isdigit():
+                    # 숫자가 아니면 마지막 숫자만 남기거나 제거 (간단하게 필터링)
+                    filtered = "".join([c for c in val if c.isdigit()])
+                    val_var.set(filtered[:2])
+                elif len(val) > 2:
+                    val_var.set(val[:2])
+                
+                # 범위를 넘어가면 최대값으로 제한 (포커스 아웃 시 처리하는 것이 좋으나 여기서는 실시간으로 둠)
+                try:
+                    if int(val_var.get()) > max_val:
+                        val_var.set(f"{max_val:02d}")
+                except: pass
+
+            val_var.trace_add("write", validate_input)
+
+            # 하단 버튼
+            ctk.CTkButton(frame, text="▼", width=45, height=25, fg_color="#3b3b3b", hover_color="#505050", command=lambda: change_val(-1)).pack(pady=2)
             return val_var
 
         hh_var = create_spinner(time_frame, initial_hh, 23)
