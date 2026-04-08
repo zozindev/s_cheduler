@@ -183,7 +183,8 @@ class GUIManager:
                 entry.configure(state="disabled", fg_color="gray25")
             return entry
 
-        ent_name = create_entry("작업 이름 (고유 식별값)", 0, task.task_name if task else "", task is not None)
+        # 작업 이름 수정을 허용하기 위해 is_disabled=False로 설정 (기본값)
+        ent_name = create_entry("작업 이름 (고유 식별값)", 0, task.task_name if task else "")
         ent_time = create_entry("실행 시각 (예: 14:30)", 2, task.execution_time if task else "")
         
         ctk.CTkLabel(container, text="파일 경로").grid(row=4, column=0, sticky="w", pady=(10, 0))
@@ -218,11 +219,25 @@ class GUIManager:
                 messagebox.showerror("입력 오류", "모든 필수 항목을 입력해주세요.")
                 return
             
+            # 중복 검사 로직
+            existing_names = [t.task_name for t in self.cm.tasks]
+            
+            if task: # 수정 모드
+                # 이름이 변경되었는데, 변경된 이름이 이미 다른 작업에서 사용 중인 경우
+                if name != task.task_name and name in existing_names:
+                    messagebox.showerror("중복 오류", f"'{name}' 이름은 이미 사용 중입니다.")
+                    return
+            else: # 추가 모드
+                if name in existing_names:
+                    messagebox.showerror("중복 오류", f"'{name}' 이름은 이미 사용 중입니다.")
+                    return
+
             new_task = Task(name, time_val, path, wakeup_var.get(), emails)
 
             try:
                 if task: # 수정
-                    self.cm.tasks = [new_task if t.task_name == name else t for t in self.cm.tasks]
+                    # 기존 이름을 가진 요소를 찾아 새 작업 정보로 교체
+                    self.cm.tasks = [new_task if t.task_name == task.task_name else t for t in self.cm.tasks]
                     self.cm.save_config()
                 else: # 추가
                     self.cm.add_task(new_task)
