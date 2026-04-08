@@ -22,19 +22,33 @@ class NotificationSystem:
     def __init__(self):
         self.smtp_server = "smtp.gmail.com"
         self.smtp_port = 587
+        
+        # .env 파일 존재 여부 확인 및 로드
+        env_path = os.path.join(os.getcwd(), ".env")
+        if os.path.exists(env_path):
+            load_result = load_dotenv(env_path)
+            if load_result:
+                logger.info("환경 설정 파일(.env) 로드 성공")
+            else:
+                logger.warning("환경 설정 파일(.env)은 존재하지만 로드에 실패했습니다.")
+        else:
+            logger.warning(f"환경 설정 파일(.env)을 찾을 수 없습니다. 경로: {env_path}")
+
         self.gmail_user = os.getenv("GMAIL_USER")
         self.gmail_password = os.getenv("GMAIL_APP_PASSWORD")
         
-        # 설정 확인
+        # 설정 확인 및 상세 안내
+        missing_vars = []
         if not self.gmail_user:
-            logger.warning("SMTP 계정(GMAIL_USER)이 설정되지 않았습니다.")
+            missing_vars.append("GMAIL_USER")
         if not self.gmail_password:
-            logger.warning("SMTP 앱 비밀번호(GMAIL_APP_PASSWORD)가 설정되지 않았습니다.")
-        
-        if self.gmail_user and self.gmail_password:
-            logger.info(f"NotificationSystem 초기화 완료 (계정: {self.gmail_user})")
+            missing_vars.append("GMAIL_APP_PASSWORD")
+            
+        if not missing_vars:
+            logger.info(f"이메일 알림 시스템 준비 완료 (계정: {self.gmail_user})")
         else:
-            logger.error("이메일 발송에 필요한 설정이 누락되어 있습니다. .env 파일을 확인하세요.")
+            logger.error(f"이메일 발송 설정이 누락되었습니다: {', '.join(missing_vars)}")
+            logger.error("루트 디렉토리에 .env 파일을 생성하고 GMAIL_USER와 GMAIL_APP_PASSWORD(앱 비밀번호 16자리)를 입력하세요.")
 
     def send_report(self, task_name: str, result: Dict[str, Any], recipients: list = None) -> bool:
         """
