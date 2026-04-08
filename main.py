@@ -21,7 +21,7 @@ logger = logging.getLogger("MainLoop")
 from src.core.power_manager import PowerManager
 from src.core.executor import TaskExecutor
 from src.utils.config_manager import ConfigManager
-from src.utils.mail_sender import NotificationSystem
+from src.utils.notification_manager import NotificationSystem
 from src.gui_manager import GUIManager
 
 class SchedulerEngine:

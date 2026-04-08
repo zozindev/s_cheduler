@@ -42,11 +42,17 @@ pip install -r requirements.txt
 ```
 
 ### 2. 보안 설정 (.env)
-이메일 알림 기능을 위해 프로젝트 루트에 `.env` 파일을 생성하고 Gmail 계정 정보를 입력합니다. (Gmail은 '앱 비밀번호' 사용이 필수입니다.)
-```env
-GMAIL_USER=your_email@gmail.com
-GMAIL_APP_PASSWORD=your_google_app_password
-```
+알림 기능(Teams 또는 이메일)을 위해 프로젝트 루트에 `.env` 파일을 생성하고 정보를 입력합니다.
+
+*   **MS Teams 알림 (권장 ⭐)**: 회사 방화벽 환경에서도 안전합니다.
+    ```env
+    TEAMS_WEBHOOK_URL=https://outlook.office.com/webhook/...
+    ```
+*   **Gmail 알림**: 일반 환경에서 사용 가능하며, 반드시 **앱 비밀번호**(16자리)를 사용해야 합니다.
+    ```env
+    GMAIL_USER=your_email@gmail.com
+    GMAIL_APP_PASSWORD=your_google_app_password
+    ```
 
 ### 3. 윈도우 전원 설정 (중요)
 절전 모드 해제 기능이 정상 작동하려면 다음 설정이 필요합니다.
@@ -79,10 +85,10 @@ python main.py
 
 ## 📂 프로젝트 구조 (Project Structure)
 
-*   `src/main.py`: 프로그램 진입점 및 백그라운드 엔진
+*   `main.py`: 프로그램 진입점 및 백그라운드 엔진 (기존 src/에서 루트로 이동)
 *   `src/gui_manager.py`: 사용자 인터페이스 관리
 *   `src/core/`: 전원 제어(`power_manager.py`) 및 작업 실행(`executor.py`) 핵심 로직
-*   `src/utils/`: 설정 관리(`config_manager.py`) 및 메일 전송(`mail_sender.py`)
+*   `src/utils/`: 설정 관리(`config_manager.py`) 및 알림 전송(`notification_manager.py`)
 *   `data/`: `s_cheduler_config.json` 스케줄 저장소
 *   `logs/`: 실행 로그 파일 저장
 
