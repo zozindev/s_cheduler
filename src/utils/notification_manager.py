@@ -16,11 +16,19 @@ class NotificationSystem:
     """이메일(SMTP) 및 MS Teams(Webhook)를 지원하는 알림 시스템"""
 
     def __init__(self):
-        # .env 파일 로드
-        env_path = os.path.join(os.getcwd(), ".env")
+        # .env 파일 로드 (프로젝트 루트 기준으로 절대 경로 생성)
+        # 이 파일(notification_manager.py)은 src/utils/에 있으므로 상위의 상위가 루트임
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        env_path = os.path.join(base_dir, ".env")
+        
         if os.path.exists(env_path):
-            load_dotenv(env_path)
-            logger.info("환경 설정 파일(.env) 로드 완료")
+            load_result = load_dotenv(env_path)
+            if load_result:
+                logger.info(f"환경 설정 파일(.env) 로드 완료: {env_path}")
+            else:
+                logger.warning(f"환경 설정 파일(.env)은 존재하지만 로드에 실패했습니다: {env_path}")
+        else:
+            logger.warning(f"환경 설정 파일(.env)을 찾을 수 없습니다. 경로: {env_path}")
         
         # 1. Teams 설정 (권장: HTTPS 기반이라 방화벽에 안전함)
         self.teams_webhook_url = os.getenv("TEAMS_WEBHOOK_URL")

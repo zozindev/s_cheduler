@@ -108,10 +108,10 @@ class SchedulerEngine:
                 status = "Success" if result["success"] else "Fail"
                 self.cm.update_task_status(task.task_name, status)
                 
-                # 이메일 알림 발송 (비동기 처리 권장되나 여기서는 동기 처리)
-                logger.info(f"이메일 알림 발송 시도: {task.task_name} (수신자: {task.recipients})")
+                # 알림 발송 (Teams Webhook 우선, 실패 시 Email)
+                logger.info(f"알림 발송 시도: {task.task_name}")
                 self.ns.send_report(task.task_name, result, recipients=task.recipients)
-                logger.info(f"이메일 알림 발송 호출 완료: {task.task_name}")
+                logger.info(f"알림 발송 호출 완료: {task.task_name}")
                 
                 # 다음 작업을 위해 짧은 휴식 (중복 실행 방지용 Jitter)
                 time.sleep(5)
