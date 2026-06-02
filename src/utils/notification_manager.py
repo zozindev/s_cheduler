@@ -62,32 +62,114 @@ class NotificationSystem:
         return False
 
     def _send_to_teams(self, task_name: str, result: Dict[str, Any]) -> bool:
-        """MS Teams Incoming Webhook을 사용하여 알림을 보냅니다."""
+        """Power Automate Workflows 웹훅을 사용하여 Teams 알림을 보냅니다.
+        
+        Note: 2026년 4월 30일부로 기존 Office 365 Connector(Incoming Webhook)가 
+        완전 폐기되어, Adaptive Card 형식의 Workflows 웹훅으로 마이그레이션됨.
+        .env의 TEAMS_WEBHOOK_URL을 Workflows에서 생성한 새 URL로 교체해야 합니다.
+        """
         success = result.get("success", False)
         status_str = "성공 ✅" if success else "실패 ❌"
+        status_color = "Good" if success else "Attention"
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # Teams 전용 Adaptive Card 형식 (간결한 버전)
+        output_text = result.get("output") or result.get("error") or "결과 없음"
+        # Adaptive Card 본문이 너무 길어지지 않도록 자르기
+        if len(str(output_text)) > 500:
+            output_text = str(output_text)[:500] + "... (생략됨)"
+
+        # Power Automate Workflows용 Adaptive Card 페이로드
         payload = {
-            "@type": "MessageCard",
-            "@context": "http://schema.org/extensions",
-            "themeColor": "0076D7" if success else "FF0000",
-            "summary": f"작업 {status_str}: {task_name}",
-            "sections": [{
-                "activityTitle": f"📢 슼케줄러 알림",
-                "activitySubtitle": f"작업 이름: **{task_name}**",
-                "facts": [
-                    {"name": "상태", "value": status_str},
-                    {"name": "실행 시각", "value": timestamp}
-                ],
-                "markdown": True
-            }]
+            "type": "message",
+            "attachments": [
+                {
+                    "contentType": "application/vnd.microsoft.card.adaptive",
+                    "contentUrl": None,
+                    "content": {
+                        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                        "type": "AdaptiveCard",
+                        "version": "1.4",
+                        "body": [
+                            {
+                                "type": "TextBlock",
+                                "size": "Large",
+                                "weight": "Bolder",
+                                "text": "📢 슼케줄러 알림",
+                                "wrap": True
+                            },
+                            {
+                                "type": "ColumnSet",
+                                "columns": [
+                                    {
+                                        "type": "Column",
+                                        "width": "auto",
+                                        "items": [
+                                            {
+                                                "type": "TextBlock",
+                                                "text": "작업 이름",
+                                                "weight": "Bolder",
+                                                "wrap": True
+                                            },
+                                            {
+                                                "type": "TextBlock",
+                                                "text": "상태",
+                                                "weight": "Bolder",
+                                                "wrap": True
+                                            },
+                                            {
+                                                "type": "TextBlock",
+                                                "text": "실행 시각",
+                                                "weight": "Bolder",
+                                                "wrap": True
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "Column",
+                                        "width": "stretch",
+                                        "items": [
+                                            {
+                                                "type": "TextBlock",
+                                                "text": task_name,
+                                                "wrap": True
+                                            },
+                                            {
+                                                "type": "TextBlock",
+                                                "text": status_str,
+                                                "color": status_color,
+                                                "wrap": True
+                                            },
+                                            {
+                                                "type": "TextBlock",
+                                                "text": timestamp,
+                                                "wrap": True
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "TextBlock",
+                                "text": f"**실행 결과:**\n{output_text}",
+                                "wrap": True,
+                                "separator": True
+                            }
+                        ]
+                    }
+                }
+            ]
         }
 
         try:
-            logger.info(f"Teams 알림 전송 시도: {task_name}")
-            response = requests.post(self.teams_webhook_url, json=payload, timeout=10)
-            if response.status_code == 200:
+            logger.info(f"Teams 알림 전송 시도 (Adaptive Card): {task_name}")
+            response = requests.post(
+                self.teams_webhook_url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=10
+            )
+            # Workflows 웹훅은 성공 시 202 Accepted를 반환할 수도 있음
+            if response.status_code in (200, 202):
                 logger.info(f"Teams 알림 전송 완료: {task_name}")
                 return True
             else:
