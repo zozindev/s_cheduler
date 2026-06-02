@@ -186,7 +186,7 @@ def main():
 
     # 3. GUI 실행 (메인 스레드)
     try:
-        gui = GUIManager(cm, pm)
+        gui = GUIManager(cm, pm, ex, ns)
         logger.info("GUI 시작...")
         gui.run()
     except Exception as e:

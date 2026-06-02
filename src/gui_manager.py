@@ -2,8 +2,11 @@ import customtkinter as ctk
 from tkinter import ttk, filedialog, messagebox
 import os
 import logging
+import threading
 from src.utils.config_manager import ConfigManager
 from src.core.power_manager import PowerManager
+from src.core.executor import TaskExecutor
+from src.utils.notification_manager import NotificationSystem
 from src.models.task import Task
 
 # 로그 설정
@@ -16,12 +19,21 @@ ctk.set_default_color_theme("blue")
 class GUIManager:
     """슼케줄러의 GUI를 관리하는 클래스 (CustomTkinter 기반)"""
 
-    def __init__(self, config_manager: ConfigManager, power_manager: PowerManager):
+    def __init__(
+        self,
+        config_manager: ConfigManager,
+        power_manager: PowerManager,
+        task_executor: TaskExecutor = None,
+        notification_system: NotificationSystem = None,
+    ):
         self.cm = config_manager
         self.pm = power_manager
+        self.executor = task_executor or TaskExecutor()
+        self.notification_system = notification_system
         self.sort_column = "execution_time"
         self.sort_reverse = False
         self.sortable_columns = {"task_name", "execution_time", "file_path"}
+        self.is_manual_run_active = False
         
         # 메인 윈도우 설정
         self.root = ctk.CTk()
@@ -138,6 +150,12 @@ class GUIManager:
             command=self._delete_task
         ).pack(side=ctk.LEFT, padx=5)
 
+        self.run_now_button = ctk.CTkButton(
+            btn_frame, text="스케줄 실행", width=120, fg_color="#1565c0", hover_color="#0d47a1",
+            command=self._run_selected_task_now
+        )
+        self.run_now_button.pack(side=ctk.LEFT, padx=5)
+
         # 유틸리티 버튼 (오른쪽) - 초록색 강조 버튼으로 변경
         ctk.CTkButton(
             btn_frame, text="🔄 새로고침", width=120, fg_color="#2e7d32", hover_color="#1b5e20",
@@ -209,9 +227,60 @@ class GUIManager:
             return
         
         task_name = self.tree.item(selected[0])['values'][0]
-        task = next((t for t in self.cm.tasks if t.task_name == task_name), None)
+        task = self._find_task_by_name(task_name)
         if task:
             self._task_popup("작업 정보 수정", task)
+
+    def _find_task_by_name(self, task_name: str):
+        return next((t for t in self.cm.tasks if t.task_name == task_name), None)
+
+    def _run_selected_task_now(self):
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("선택 오류", "실행할 스케줄을 목록에서 선택하세요.")
+            return
+
+        if self.is_manual_run_active:
+            messagebox.showinfo("실행 중", "이미 스케줄을 실행 중입니다. 완료 후 다시 시도하세요.")
+            return
+
+        task_name = self.tree.item(selected[0])["values"][0]
+        task = self._find_task_by_name(task_name)
+        if not task:
+            messagebox.showerror("실행 오류", f"'{task_name}' 스케줄을 찾을 수 없습니다.")
+            return
+
+        if not messagebox.askyesno("스케줄 실행", f"'{task.task_name}' 스케줄을 지금 실행할까요?"):
+            return
+
+        self.is_manual_run_active = True
+        self.run_now_button.configure(state="disabled", text="실행 중...")
+
+        thread = threading.Thread(target=self._run_task_worker, args=(task,), daemon=True)
+        thread.start()
+
+    def _run_task_worker(self, task: Task):
+        logger.info(f"수동 스케줄 실행 시작: {task.task_name}")
+        result = self.executor.execute(task.file_path)
+        status = "Success" if result["success"] else "Fail"
+        self.cm.update_task_status(task.task_name, status)
+
+        if self.notification_system:
+            logger.info(f"수동 스케줄 알림 발송 시도: {task.task_name}")
+            self.notification_system.send_report(task.task_name, result, recipients=task.recipients)
+
+        self.root.after(0, lambda: self._on_manual_run_complete(task, result))
+
+    def _on_manual_run_complete(self, task: Task, result: dict):
+        self.is_manual_run_active = False
+        self.run_now_button.configure(state="normal", text="스케줄 실행")
+        self.refresh_list()
+
+        if result["success"]:
+            messagebox.showinfo("스케줄 실행 완료", f"'{task.task_name}' 실행이 완료되었습니다.")
+        else:
+            error_text = result.get("error") or "알 수 없는 오류"
+            messagebox.showerror("스케줄 실행 실패", f"'{task.task_name}' 실행에 실패했습니다.\n\n{error_text}")
 
     def _task_popup(self, title, task: Task = None):
         """작업 추가/수정용 모던 팝업"""
