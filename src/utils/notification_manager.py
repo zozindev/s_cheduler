@@ -8,7 +8,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from dotenv import load_dotenv
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 # 상세 로그 설정
 logger = logging.getLogger(__name__)
@@ -33,6 +33,13 @@ class NotificationSystem:
         
         # 1. Teams 설정 (권장: HTTPS 기반이라 방화벽에 안전함)
         self.teams_webhook_url = os.getenv("TEAMS_WEBHOOK_URL")
+        self.teams_oauth_tenant_id = os.getenv("TEAMS_OAUTH_TENANT_ID")
+        self.teams_oauth_client_id = os.getenv("TEAMS_OAUTH_CLIENT_ID")
+        self.teams_oauth_client_secret = os.getenv("TEAMS_OAUTH_CLIENT_SECRET")
+        self.teams_oauth_scope = os.getenv(
+            "TEAMS_OAUTH_SCOPE",
+            "https://service.flow.microsoft.com/.default",
+        )
         
         # SSL 검증 설정 (사내 SSL Inspection 환경에서 false로 설정)
         verify_ssl_env = os.getenv("TEAMS_VERIFY_SSL", "true").lower()
@@ -181,7 +188,7 @@ class NotificationSystem:
             response = requests.post(
                 self.teams_webhook_url,
                 json=payload,
-                headers={"Content-Type": "application/json"},
+                headers=self._build_teams_headers(),
                 timeout=10,
                 verify=self.verify_ssl
             )
@@ -189,6 +196,18 @@ class NotificationSystem:
             if response.status_code in (200, 202):
                 logger.info(f"Teams 알림 전송 완료: {task_name}")
                 return True
+            elif (
+                response.status_code == 401
+                and self._is_direct_api_authorization_required(response.text)
+            ):
+                logger.error(
+                    "Teams 알림 실패 (HTTP 401): Power Automate HTTP 트리거가 OAuth 인증을 요구합니다. "
+                    "트리거의 'Who can trigger the flow'를 'Anyone'으로 바꾸거나, "
+                    ".env에 TEAMS_OAUTH_TENANT_ID, TEAMS_OAUTH_CLIENT_ID, "
+                    "TEAMS_OAUTH_CLIENT_SECRET 값을 설정하세요. 응답: %s",
+                    response.text,
+                )
+                return False
             else:
                 logger.error(f"Teams 알림 실패 (HTTP {response.status_code}): {response.text}")
                 return False
@@ -206,6 +225,69 @@ class NotificationSystem:
         except Exception as e:
             logger.error(f"Teams 알림 전송 중 오류 발생: {e}")
             return False
+
+    def _build_teams_headers(self) -> Dict[str, str]:
+        headers = {"Content-Type": "application/json"}
+        access_token = self._get_power_automate_access_token()
+        if access_token:
+            headers["Authorization"] = f"Bearer {access_token}"
+        return headers
+
+    def _get_power_automate_access_token(self) -> Optional[str]:
+        if not all(
+            [
+                self.teams_oauth_tenant_id,
+                self.teams_oauth_client_id,
+                self.teams_oauth_client_secret,
+            ]
+        ):
+            return None
+
+        token_url = (
+            f"https://login.microsoftonline.com/{self.teams_oauth_tenant_id}"
+            "/oauth2/v2.0/token"
+        )
+        try:
+            response = requests.post(
+                token_url,
+                data={
+                    "grant_type": "client_credentials",
+                    "client_id": self.teams_oauth_client_id,
+                    "client_secret": self.teams_oauth_client_secret,
+                    "scope": self.teams_oauth_scope,
+                },
+                timeout=10,
+                verify=self.verify_ssl,
+            )
+            if response.status_code != 200:
+                logger.error(
+                    "Power Automate OAuth 토큰 발급 실패 (HTTP %s): %s",
+                    response.status_code,
+                    response.text,
+                )
+                return None
+
+            access_token = response.json().get("access_token")
+            if not access_token:
+                logger.error("Power Automate OAuth 토큰 응답에 access_token이 없습니다.")
+                return None
+            return access_token
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Power Automate OAuth 토큰 발급 중 네트워크 오류 발생: {e}")
+            return None
+        except ValueError as e:
+            logger.error(f"Power Automate OAuth 토큰 응답 JSON 파싱 실패: {e}")
+            return None
+
+    @staticmethod
+    def _is_direct_api_authorization_required(response_text: str) -> bool:
+        try:
+            payload = json.loads(response_text)
+        except ValueError:
+            return "DirectApiAuthorizationRequired" in response_text
+
+        error = payload.get("error", {})
+        return error.get("code") == "DirectApiAuthorizationRequired"
 
     def _send_to_email(self, task_name: str, result: Dict[str, Any], recipients: list = None) -> bool:
         """기존 이메일(SMTP) 발송 로직"""
