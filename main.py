@@ -1,20 +1,64 @@
 import os
+import subprocess
+import sys
 import time
 import threading
 import logging
 from datetime import datetime, timedelta
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def detach_to_pythonw_if_needed():
+    if os.name != "nt":
+        return
+
+    if os.environ.get("SCHEDULER_DETACHED") == "1":
+        return
+
+    executable_name = os.path.basename(sys.executable).lower()
+    if executable_name != "python.exe":
+        return
+
+    pythonw_path = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+    if not os.path.exists(pythonw_path):
+        print("pythonw.exe를 찾을 수 없어 콘솔 모드로 실행합니다.")
+        return
+
+    env = os.environ.copy()
+    env["SCHEDULER_DETACHED"] = "1"
+    creation_flags = (
+        subprocess.DETACHED_PROCESS
+        | subprocess.CREATE_NEW_PROCESS_GROUP
+        | subprocess.CREATE_NO_WINDOW
+    )
+
+    subprocess.Popen(
+        [pythonw_path, os.path.abspath(__file__), *sys.argv[1:]],
+        cwd=BASE_DIR,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        close_fds=True,
+        creationflags=creation_flags,
+    )
+    sys.exit(0)
+
 # 필수 디렉토리 생성 및 로깅 설정 (가장 먼저 수행)
-os.makedirs("logs", exist_ok=True)
-os.makedirs("data", exist_ok=True)
+os.makedirs(os.path.join(BASE_DIR, "logs"), exist_ok=True)
+os.makedirs(os.path.join(BASE_DIR, "data"), exist_ok=True)
+
+log_handlers = [
+    logging.FileHandler(os.path.join(BASE_DIR, "logs", "scheduler.log"), encoding="utf-8")
+]
+if os.environ.get("SCHEDULER_DETACHED") != "1":
+    log_handlers.append(logging.StreamHandler())
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("logs/scheduler.log", encoding="utf-8"),
-        logging.StreamHandler()
-    ]
+    handlers=log_handlers
 )
 logger = logging.getLogger("MainLoop")
 
@@ -152,4 +196,5 @@ def main():
         engine.stop()
 
 if __name__ == "__main__":
+    detach_to_pythonw_if_needed()
     main()
