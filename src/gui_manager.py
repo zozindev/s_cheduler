@@ -19,6 +19,9 @@ class GUIManager:
     def __init__(self, config_manager: ConfigManager, power_manager: PowerManager):
         self.cm = config_manager
         self.pm = power_manager
+        self.sort_column = "execution_time"
+        self.sort_reverse = False
+        self.sortable_columns = {"task_name", "execution_time", "file_path"}
         
         # 메인 윈도우 설정
         self.root = ctk.CTk()
@@ -88,11 +91,19 @@ class GUIManager:
         # 더블 클릭 이벤트 바인딩
         self.tree.bind("<Double-1>", lambda event: self._edit_task_window())
         
-        self.tree.heading("task_name", text="작업명")
-        self.tree.heading("execution_time", text="실행 시각")
-        self.tree.heading("file_path", text="파일 경로")
+        self.column_labels = {
+            "task_name": "작업명",
+            "execution_time": "실행 시각",
+            "file_path": "파일 경로",
+            "wakeup": "절전 해제",
+            "last_status": "최근 상태",
+        }
+        self.tree.heading("task_name", command=lambda: self._set_sort("task_name"))
+        self.tree.heading("execution_time", command=lambda: self._set_sort("execution_time"))
+        self.tree.heading("file_path", command=lambda: self._set_sort("file_path"))
         self.tree.heading("wakeup", text="절전 해제")
         self.tree.heading("last_status", text="최근 상태")
+        self._refresh_sort_headings()
 
         self.tree.column("task_name", width=120, anchor="center")
         self.tree.column("execution_time", width=100, anchor="center")
@@ -141,7 +152,7 @@ class GUIManager:
             self.tree.delete(item)
         
         self.cm.load_config()
-        for task in self.cm.tasks:
+        for task in self._sort_tasks_for_display(self.cm.tasks):
             self.tree.insert("", ctk.END, values=(
                 task.task_name,
                 task.execution_time,
@@ -149,6 +160,44 @@ class GUIManager:
                 "✅ 사용" if task.wakeup_enabled else "❌ 미사용",
                 task.last_run_status
             ))
+
+    def _set_sort(self, column: str):
+        if column not in self.sortable_columns:
+            return
+
+        if self.sort_column == column:
+            self.sort_reverse = not self.sort_reverse
+        else:
+            self.sort_column = column
+            self.sort_reverse = False
+
+        self._refresh_sort_headings()
+        self.refresh_list()
+
+    def _sort_tasks_for_display(self, tasks):
+        return sorted(tasks, key=self._get_sort_key, reverse=self.sort_reverse)
+
+    def _get_sort_key(self, task: Task):
+        value = getattr(task, self.sort_column, "")
+        if self.sort_column == "execution_time":
+            try:
+                hour, minute = str(value).split(":", 1)
+                return int(hour), int(minute)
+            except (ValueError, TypeError):
+                return 99, 99
+
+        return str(value).casefold()
+
+    def _refresh_sort_headings(self):
+        for column in self.sortable_columns:
+            direction = ""
+            if column == self.sort_column:
+                direction = " ▼" if self.sort_reverse else " ▲"
+            self.tree.heading(
+                column,
+                text=f"{self.column_labels[column]}{direction}",
+                command=lambda col=column: self._set_sort(col),
+            )
 
     def _add_task_window(self):
         self._task_popup("새 작업 추가")
