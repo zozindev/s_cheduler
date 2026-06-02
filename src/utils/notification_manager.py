@@ -2,6 +2,7 @@ import os
 import logging
 import json
 import requests
+import urllib3
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -32,6 +33,13 @@ class NotificationSystem:
         
         # 1. Teams 설정 (권장: HTTPS 기반이라 방화벽에 안전함)
         self.teams_webhook_url = os.getenv("TEAMS_WEBHOOK_URL")
+        
+        # SSL 검증 설정 (사내 SSL Inspection 환경에서 false로 설정)
+        verify_ssl_env = os.getenv("TEAMS_VERIFY_SSL", "true").lower()
+        self.verify_ssl = verify_ssl_env not in ("false", "0", "no")
+        if not self.verify_ssl:
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            logger.info("SSL 검증 비활성화됨 (TEAMS_VERIFY_SSL=false)")
         
         # 2. Email 설정 (SMTP: 사내 방화벽에서 막힐 수 있음)
         self.smtp_server = "smtp.gmail.com"
@@ -166,7 +174,8 @@ class NotificationSystem:
                 self.teams_webhook_url,
                 json=payload,
                 headers={"Content-Type": "application/json"},
-                timeout=10
+                timeout=10,
+                verify=self.verify_ssl
             )
             # Workflows 웹훅은 성공 시 202 Accepted를 반환할 수도 있음
             if response.status_code in (200, 202):
