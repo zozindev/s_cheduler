@@ -23,7 +23,7 @@ class NotificationSystem:
         env_path = os.path.join(base_dir, ".env")
         
         if os.path.exists(env_path):
-            load_result = load_dotenv(env_path)
+            load_result = load_dotenv(env_path, override=True)
             if load_result:
                 logger.info(f"환경 설정 파일(.env) 로드 완료: {env_path}")
             else:
@@ -40,6 +40,8 @@ class NotificationSystem:
         if not self.verify_ssl:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
             logger.info("SSL 검증 비활성화됨 (TEAMS_VERIFY_SSL=false)")
+        else:
+            logger.info("SSL 검증 활성화됨 (TEAMS_VERIFY_SSL=true)")
         
         # 2. Email 설정 (SMTP: 사내 방화벽에서 막힐 수 있음)
         self.smtp_server = "smtp.gmail.com"
@@ -60,7 +62,13 @@ class NotificationSystem:
         
         # 1. Teams Webhook 발송 시도 (가장 먼저 시도)
         if self.teams_webhook_url:
-            return self._send_to_teams(task_name, result)
+            if self._send_to_teams(task_name, result):
+                return True
+
+            logger.warning("Teams 알림 전송 실패. 이메일 설정이 있으면 fallback 발송을 시도합니다.")
+            if self.gmail_user and self.gmail_password:
+                return self._send_to_email(task_name, result, recipients)
+            return False
         
         # 2. Teams가 설정 안 된 경우 이메일 발송 시도
         if self.gmail_user and self.gmail_password:
@@ -184,6 +192,17 @@ class NotificationSystem:
             else:
                 logger.error(f"Teams 알림 실패 (HTTP {response.status_code}): {response.text}")
                 return False
+        except requests.exceptions.SSLError as e:
+            logger.error(
+                "Teams 알림 전송 중 SSL 인증서 검증 오류 발생: %s. "
+                "사내 SSL Inspection 환경이면 .env에서 TEAMS_VERIFY_SSL=false로 설정하거나, "
+                "회사 루트 인증서를 Python/requests 신뢰 저장소에 추가하세요.",
+                e,
+            )
+            return False
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Teams 알림 전송 중 네트워크 오류 발생: {e}")
+            return False
         except Exception as e:
             logger.error(f"Teams 알림 전송 중 오류 발생: {e}")
             return False
