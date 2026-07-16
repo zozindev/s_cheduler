@@ -1,14 +1,14 @@
 [
     {
         "task_name": "Test_Batch_Task",
-        "execution_time": "09:00",
+        "execution_time": "09:59",
         "file_path": "C:\\path\\to\\your\\script.bat",
         "wakeup_enabled": true,
         "recipients": [],
-        "enabled": true,
-        "timeout_minutes": 30,
         "last_run_status": "Not Started",
         "last_run_time": null,
+        "enabled": false,
+        "timeout_minutes": 30,
         "last_run_return_code": null,
         "last_run_output": "",
         "last_run_error": "",
