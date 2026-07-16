@@ -54,12 +54,16 @@ class GUIManager:
         self.root = ctk.CTk()
         self.root.title("스케줄러 (S-cheduler) v3.0")
         self.root.geometry("1250x700")
-        self.root.minsize(1000, 600)
+        self.root.minsize(900, 520)
         self._setup_main_window()
 
     def _setup_main_window(self):
+        self.root.grid_columnconfigure(0, weight=1)
+        self.root.grid_rowconfigure(2, weight=1)
+        self.root.grid_rowconfigure(3, weight=0, minsize=100)
+
         header_frame = ctk.CTkFrame(self.root, fg_color="transparent")
-        header_frame.pack(fill=ctk.X, padx=20, pady=(20, 10))
+        header_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=(20, 10))
 
         ctk.CTkLabel(
             header_frame,
@@ -73,7 +77,7 @@ class GUIManager:
         ).pack(side=ctk.LEFT, padx=16, pady=(7, 0))
 
         power_frame = ctk.CTkFrame(self.root)
-        power_frame.pack(fill=ctk.X, padx=20, pady=10)
+        power_frame.grid(row=1, column=0, sticky="ew", padx=20, pady=10)
         self.stay_awake_var = ctk.BooleanVar(value=False)
 
         def on_toggle_stay_awake():
@@ -90,7 +94,9 @@ class GUIManager:
         ).pack(side=ctk.LEFT, padx=15, pady=10)
 
         list_frame = ctk.CTkFrame(self.root)
-        list_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=10)
+        list_frame.grid(row=2, column=0, sticky="nsew", padx=20, pady=10)
+        list_frame.grid_rowconfigure(0, weight=1)
+        list_frame.grid_columnconfigure(0, weight=1)
 
         style = ttk.Style()
         style.theme_use("default")
@@ -162,28 +168,34 @@ class GUIManager:
         y_scrollbar = ctk.CTkScrollbar(list_frame, orientation="vertical", command=self.tree.yview)
         x_scrollbar = ctk.CTkScrollbar(list_frame, orientation="horizontal", command=self.tree.xview)
         self.tree.configure(yscrollcommand=y_scrollbar.set, xscrollcommand=x_scrollbar.set)
-        self.tree.pack(side=ctk.TOP, fill=ctk.BOTH, expand=True)
-        x_scrollbar.pack(side=ctk.BOTTOM, fill=ctk.X)
-        y_scrollbar.pack(side=ctk.RIGHT, fill=ctk.Y)
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        y_scrollbar.grid(row=0, column=1, sticky="ns")
+        x_scrollbar.grid(row=1, column=0, sticky="ew")
 
         button_frame = ctk.CTkFrame(self.root, fg_color="transparent")
-        button_frame.pack(fill=ctk.X, padx=20, pady=(10, 20))
+        button_frame.grid(row=3, column=0, sticky="ew", padx=20, pady=(5, 15))
+        button_frame.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkButton(button_frame, text="✚ 스케줄 추가", width=115, command=self._add_task_window).pack(side=ctk.LEFT, padx=3)
-        ctk.CTkButton(button_frame, text="✎ 수정", width=80, fg_color="gray30", hover_color="gray40", command=self._edit_task_window).pack(side=ctk.LEFT, padx=3)
-        ctk.CTkButton(button_frame, text="복제", width=80, fg_color="#6a1b9a", hover_color="#4a148c", command=self._duplicate_selected_task).pack(side=ctk.LEFT, padx=3)
-        self.toggle_button = ctk.CTkButton(button_frame, text="예약 중지/재개", width=115, fg_color="#ef6c00", hover_color="#e65100", command=self._toggle_selected_task)
+        primary_button_frame = ctk.CTkFrame(button_frame, fg_color="transparent")
+        primary_button_frame.grid(row=0, column=0, sticky="ew")
+        utility_button_frame = ctk.CTkFrame(button_frame, fg_color="transparent")
+        utility_button_frame.grid(row=1, column=0, sticky="ew", pady=(4, 0))
+
+        ctk.CTkButton(primary_button_frame, text="✚ 스케줄 추가", width=115, command=self._add_task_window).pack(side=ctk.LEFT, padx=3)
+        ctk.CTkButton(primary_button_frame, text="✎ 수정", width=80, fg_color="gray30", hover_color="gray40", command=self._edit_task_window).pack(side=ctk.LEFT, padx=3)
+        ctk.CTkButton(primary_button_frame, text="복제", width=80, fg_color="#6a1b9a", hover_color="#4a148c", command=self._duplicate_selected_task).pack(side=ctk.LEFT, padx=3)
+        self.toggle_button = ctk.CTkButton(primary_button_frame, text="예약 중지/재개", width=115, fg_color="#ef6c00", hover_color="#e65100", command=self._toggle_selected_task)
         self.toggle_button.pack(side=ctk.LEFT, padx=3)
-        ctk.CTkButton(button_frame, text="🗑 삭제", width=80, fg_color="#d32f2f", hover_color="#b71c1c", command=self._delete_task).pack(side=ctk.LEFT, padx=3)
-        self.run_now_button = ctk.CTkButton(button_frame, text="지금 실행", width=95, fg_color="#1565c0", hover_color="#0d47a1", command=self._run_selected_task_now)
+        ctk.CTkButton(primary_button_frame, text="🗑 삭제", width=80, fg_color="#d32f2f", hover_color="#b71c1c", command=self._delete_task).pack(side=ctk.LEFT, padx=3)
+        self.run_now_button = ctk.CTkButton(primary_button_frame, text="지금 실행", width=95, fg_color="#1565c0", hover_color="#0d47a1", command=self._run_selected_task_now)
         self.run_now_button.pack(side=ctk.LEFT, padx=3)
-        ctk.CTkButton(button_frame, text="실행 상세", width=95, fg_color="#455a64", hover_color="#263238", command=self._show_task_details).pack(side=ctk.LEFT, padx=3)
+        ctk.CTkButton(primary_button_frame, text="실행 상세", width=95, fg_color="#455a64", hover_color="#263238", command=self._show_task_details).pack(side=ctk.LEFT, padx=3)
 
-        self.notification_test_button = ctk.CTkButton(button_frame, text="알림 테스트", width=100, fg_color="#00897b", hover_color="#00695c", command=self._test_notification)
+        self.notification_test_button = ctk.CTkButton(utility_button_frame, text="알림 테스트", width=100, fg_color="#00897b", hover_color="#00695c", command=self._test_notification)
         self.notification_test_button.pack(side=ctk.RIGHT, padx=3)
-        ctk.CTkButton(button_frame, text="설정 복원", width=95, fg_color="#795548", hover_color="#5d4037", command=self._restore_config).pack(side=ctk.RIGHT, padx=3)
-        ctk.CTkButton(button_frame, text="설정 백업", width=95, fg_color="#795548", hover_color="#5d4037", command=self._backup_config).pack(side=ctk.RIGHT, padx=3)
-        ctk.CTkButton(button_frame, text="🔄 새로고침", width=95, fg_color="#2e7d32", hover_color="#1b5e20", command=self.refresh_list).pack(side=ctk.RIGHT, padx=3)
+        ctk.CTkButton(utility_button_frame, text="설정 복원", width=95, fg_color="#795548", hover_color="#5d4037", command=self._restore_config).pack(side=ctk.RIGHT, padx=3)
+        ctk.CTkButton(utility_button_frame, text="설정 백업", width=95, fg_color="#795548", hover_color="#5d4037", command=self._backup_config).pack(side=ctk.RIGHT, padx=3)
+        ctk.CTkButton(utility_button_frame, text="🔄 새로고침", width=95, fg_color="#2e7d32", hover_color="#1b5e20", command=self.refresh_list).pack(side=ctk.RIGHT, padx=3)
 
         self.refresh_list()
         self.root.after(5000, self._auto_refresh)
