@@ -5,7 +5,13 @@
         "file_path": "C:\\path\\to\\your\\script.bat",
         "wakeup_enabled": true,
         "recipients": [],
+        "enabled": true,
+        "timeout_minutes": 30,
         "last_run_status": "Not Started",
-        "last_run_time": null
+        "last_run_time": null,
+        "last_run_return_code": null,
+        "last_run_output": "",
+        "last_run_error": "",
+        "last_run_duration_seconds": null
     }
 ]

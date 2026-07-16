@@ -1,7 +1,9 @@
 import os
 import platform
 import shutil
+import subprocess
 import unittest
+from unittest.mock import patch
 
 from src.core.executor import TaskExecutor
 
@@ -55,6 +57,18 @@ class TestTaskExecutor(unittest.TestCase):
         self.assertFalse(res["success"])
         self.assertEqual(res["return_code"], -1)
         self.assertTrue(res["error"])
+
+    @patch("src.core.executor.subprocess.run")
+    def test_timeout_returns_failure_details(self, mock_run):
+        """실행 제한 시간을 넘기면 오류 상세가 반환되어야 합니다."""
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="test", timeout=60)
+
+        res = self.executor.execute(self.success_script, timeout_seconds=60)
+
+        self.assertFalse(res["success"])
+        self.assertTrue(res["timed_out"])
+        self.assertEqual(res["return_code"], -2)
+        self.assertIn("1분 초과", res["error"])
 
 
 if __name__ == "__main__":

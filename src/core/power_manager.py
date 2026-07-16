@@ -1,7 +1,6 @@
 import ctypes
-import os
-import platform
 import logging
+import platform
 from ctypes import wintypes
 
 # 로거 설정
@@ -13,17 +12,52 @@ class PowerManager:
     def __init__(self):
         self._h_timer = None
         self._is_windows = platform.system() == "Windows"
+        self._kernel32 = None
+        self._shell32 = None
+
+        if self._is_windows:
+            self._kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            self._shell32 = ctypes.WinDLL("shell32", use_last_error=True)
+            self._configure_api_types()
         
         if not self._is_windows:
             logger.warning("PowerManager는 Windows 환경에서만 완전히 동작합니다. 현재 OS: %s", platform.system())
+
+    def _configure_api_types(self):
+        """64비트 Windows에서도 HANDLE이 잘리지 않도록 Win32 타입을 명시합니다."""
+        self._shell32.IsUserAnAdmin.restype = wintypes.BOOL
+
+        self._kernel32.SetThreadExecutionState.argtypes = [wintypes.ULONG]
+        self._kernel32.SetThreadExecutionState.restype = wintypes.ULONG
+
+        self._kernel32.CreateWaitableTimerW.argtypes = [
+            wintypes.LPVOID,
+            wintypes.BOOL,
+            wintypes.LPCWSTR,
+        ]
+        self._kernel32.CreateWaitableTimerW.restype = wintypes.HANDLE
+
+        self._kernel32.SetWaitableTimer.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(ctypes.c_longlong),
+            wintypes.LONG,
+            wintypes.LPVOID,
+            wintypes.LPVOID,
+            wintypes.BOOL,
+        ]
+        self._kernel32.SetWaitableTimer.restype = wintypes.BOOL
+        self._kernel32.CancelWaitableTimer.argtypes = [wintypes.HANDLE]
+        self._kernel32.CancelWaitableTimer.restype = wintypes.BOOL
+        self._kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        self._kernel32.CloseHandle.restype = wintypes.BOOL
 
     def is_admin(self) -> bool:
         """현재 프로세스가 관리자 권한으로 실행 중인지 확인합니다."""
         if not self._is_windows:
             return False
         try:
-            return ctypes.windll.shell32.IsUserAnAdmin() != 0
-        except AttributeError:
+            return self._shell32.IsUserAnAdmin() != 0
+        except (AttributeError, OSError):
             return False
 
     def set_sleep_prevention(self, enabled: bool):
@@ -51,7 +85,7 @@ class PowerManager:
 
         try:
             # Win32 API 호출
-            result = ctypes.windll.kernel32.SetThreadExecutionState(flags)
+            result = self._kernel32.SetThreadExecutionState(flags)
             if result == 0:
                 logger.error("SetThreadExecutionState 호출 실패 (결과값 0)")
         except Exception as e:
@@ -69,11 +103,17 @@ class PowerManager:
             bool: 타이머 설정 성공 여부
         """
         if not enabled:
+            # 새 작업에서 웨이크업을 끈 경우 이전 작업의 타이머도 반드시 취소합니다.
+            self.cancel_timer()
             logger.info("웨이크업 타이머 기능이 비활성화되어 있어 타이머를 설정하지 않습니다.")
             return True
 
         if not self._is_windows:
             logger.error("Windows가 아닌 환경에서는 웨이크업 타이머를 설정할 수 없습니다.")
+            return False
+
+        if seconds <= 0:
+            logger.error("웨이크업 타이머 시간은 1초 이상이어야 합니다.")
             return False
 
         if not self.is_admin():
@@ -85,7 +125,7 @@ class PowerManager:
 
         # 2. 대기 가능한 타이머 생성 (CreateWaitableTimerW)
         # lpTimerAttributes=None, bManualReset=True, lpTimerName=None
-        self._h_timer = ctypes.windll.kernel32.CreateWaitableTimerW(None, True, None)
+        self._h_timer = self._kernel32.CreateWaitableTimerW(None, True, None)
         if not self._h_timer:
             logger.error("WaitableTimer 생성 실패: %d", ctypes.get_last_error())
             return False
@@ -98,7 +138,7 @@ class PowerManager:
         # BOOL SetWaitableTimer(HANDLE hTimer, const LARGE_INTEGER *pDueTime, LONG lPeriod, 
         #                      PTIMERAPCROUTINE pfnCompletionRoutine, LPVOID lpArgToCompletionRoutine, BOOL fResume)
         # fResume (마지막 인자)을 True(1)로 설정해야 절전 모드에서 깨어남
-        success = ctypes.windll.kernel32.SetWaitableTimer(
+        success = self._kernel32.SetWaitableTimer(
             self._h_timer,
             ctypes.byref(due_time),
             0,      # lPeriod (0 = 일회성)
@@ -118,8 +158,8 @@ class PowerManager:
     def cancel_timer(self):
         """설정된 타이머를 취소하고 핸들을 닫습니다."""
         if self._h_timer:
-            ctypes.windll.kernel32.CancelWaitableTimer(self._h_timer)
-            ctypes.windll.kernel32.CloseHandle(self._h_timer)
+            self._kernel32.CancelWaitableTimer(self._h_timer)
+            self._kernel32.CloseHandle(self._h_timer)
             self._h_timer = None
             logger.info("기존 웨이크업 타이머 취소 및 리소스 정리 완료")
 

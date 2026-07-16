@@ -90,5 +90,67 @@ class TestConfigManager(unittest.TestCase):
         self.assertEqual(updated_tasks[0].last_run_status, "Success")
         self.assertIsNotNone(updated_tasks[0].last_run_time)
 
+    def test_disabled_task_is_excluded_from_schedule(self):
+        """비활성화한 작업은 다음 실행 작업에서 제외되어야 합니다."""
+        disabled = Task("DisabledTask", "10:00", "disabled.bat", enabled=False)
+        enabled = Task("EnabledTask", "11:00", "enabled.bat", enabled=True)
+        self.cm.add_task(disabled)
+        self.cm.add_task(enabled)
+
+        next_task = self.cm.get_next_task()
+
+        self.assertIsNotNone(next_task)
+        self.assertEqual(next_task.task_name, "EnabledTask")
+
+    def test_tasks_at_same_time_are_returned_in_registration_order(self):
+        """같은 시각의 활성 작업을 등록 순서대로 반환해야 합니다."""
+        first = Task("FirstTask", "09:00", "first.bat")
+        disabled = Task("DisabledTask", "09:00", "disabled.bat", enabled=False)
+        second = Task("SecondTask", "09:00", "second.bat")
+        self.cm.add_task(first)
+        self.cm.add_task(disabled)
+        self.cm.add_task(second)
+
+        tasks = self.cm.get_tasks_at_time("09:00")
+
+        self.assertEqual([task.task_name for task in tasks], ["FirstTask", "SecondTask"])
+
+    def test_update_result_persists_execution_details(self):
+        """실행 결과 상세 정보가 저장되고 다시 읽혀야 합니다."""
+        self.cm.add_task(Task("DetailTask", "12:00", "detail.bat"))
+
+        saved = self.cm.update_task_result(
+            "DetailTask",
+            {
+                "success": False,
+                "return_code": 7,
+                "output": "standard output",
+                "error": "standard error",
+                "duration_seconds": 2.5,
+            },
+        )
+        reloaded = self.cm.load_config()[0]
+
+        self.assertTrue(saved)
+        self.assertEqual(reloaded.last_run_status, "Fail")
+        self.assertEqual(reloaded.last_run_return_code, 7)
+        self.assertEqual(reloaded.last_run_output, "standard output")
+        self.assertEqual(reloaded.last_run_error, "standard error")
+        self.assertEqual(reloaded.last_run_duration_seconds, 2.5)
+
+    def test_export_and_import_config(self):
+        """설정 내보내기와 복원이 동작해야 합니다."""
+        self.cm.add_task(Task("BackupTask", "13:00", "backup.bat", timeout_minutes=12))
+        export_path = os.path.join(self.test_dir, "backup.json")
+        self.assertTrue(self.cm.export_config(export_path))
+
+        self.cm.delete_task("BackupTask")
+        self.assertEqual(self.cm.load_config(), [])
+        self.assertTrue(self.cm.import_config(export_path))
+
+        restored = self.cm.load_config()[0]
+        self.assertEqual(restored.task_name, "BackupTask")
+        self.assertEqual(restored.timeout_minutes, 12)
+
 if __name__ == "__main__":
     unittest.main()
