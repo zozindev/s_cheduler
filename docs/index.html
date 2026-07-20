@@ -941,6 +941,27 @@
 
     .finish-meta span { padding: 7px 10px; border: 1px solid rgba(255,255,255,.10); border-radius: 999px; }
 
+    .github-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 28px;
+      padding: 13px 17px;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 14px;
+      color: white;
+      background: rgba(255,255,255,.10);
+      font-size: 13px;
+      font-weight: 800;
+      text-decoration: none;
+      backdrop-filter: blur(16px);
+      transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
+    }
+
+    .github-link::before { content: "<>"; color: #65adff; font-family: Consolas, monospace; }
+    .github-link:hover { border-color: rgba(101,173,255,.55); background: rgba(255,255,255,.16); transform: translateY(-2px); }
+    .github-link:focus-visible { outline: 3px solid rgba(101,173,255,.48); outline-offset: 4px; }
+
     .reveal {
       opacity: 0;
       transform: translateY(22px);
@@ -1293,6 +1314,7 @@
         <p class="lead reveal">가상환경을 만들고 의존성을 설치한 다음 S-cheduler를 실행하세요.</p>
         <div class="command reveal">python -m pip install -r requirements.txt &nbsp;&&&nbsp; python main.py</div>
         <div class="finish-meta reveal"><span>Windows 10 / 11</span><span>Python 3.10+</span><span>Local-first</span></div>
+        <a class="github-link reveal" href="https://github.com/zozindev/s_cheduler" target="_blank" rel="noopener noreferrer">GitHub에서 프로젝트 보기&nbsp; ↗</a>
       </div>
     </section>
   </main>
