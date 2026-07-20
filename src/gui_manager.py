@@ -6,7 +6,6 @@ import tkinter as tk
 from tkinter import filedialog, font as tkfont, messagebox
 
 import customtkinter as ctk
-from customtkinter.windows.widgets.core_rendering import DrawEngine
 
 from src.core.executor import TaskExecutor
 from src.core.power_manager import PowerManager
@@ -17,80 +16,162 @@ from src.utils.notification_manager import NotificationSystem
 logger = logging.getLogger(__name__)
 
 
-class SmoothSwitch(ctk.CTkSwitch):
-    """A compact switch with a visible state border and eased knob movement."""
+class SmoothSwitch(ctk.CTkFrame):
+    """A simple native CustomTkinter switch with eased knob movement."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        master,
+        width=54,
+        height=28,
+        switch_width=42,
+        switch_height=24,
+        bg_color="transparent",
+        border_color="#D1D1D6",
+        progress_color="#007AFF",
+        button_color="#FFFFFF",
+        button_hover_color="#E5F1FF",
+        surface_color="#FFFFFF",
+        variable=None,
+        onvalue=1,
+        offvalue=0,
+        command=None,
+        state=tk.NORMAL,
+        hover=True,
+        **kwargs,
+    ):
+        # Keep the CTkSwitch-style call signature used by the task row while
+        # drawing the complete switch on one Canvas.
+        kwargs.pop("text", None)
+        kwargs.pop("border_width", None)
+        kwargs.pop("fg_color", None)
+
         self._animation_after_id = None
         self._animation_steps = 10
-        self._animation_delay = 14
-        previous_drawing_method = DrawEngine.preferred_drawing_method
-        DrawEngine.preferred_drawing_method = "polygon_shapes"
-        try:
-            super().__init__(*args, **kwargs)
-        finally:
-            DrawEngine.preferred_drawing_method = previous_drawing_method
-        # Polygon shapes expose a real canvas outline for the knob. The default
-        # font-based renderer cannot draw a separate border around the white knob.
-        self._draw_engine.preferred_drawing_method = "polygon_shapes"
-        self._draw()
+        self._animation_delay = 16
+        self._switch_width = switch_width
+        self._switch_height = switch_height
+        self._switch_border_color = border_color
+        self._switch_progress_color = progress_color
+        self._switch_button_color = button_color
+        self._switch_button_hover_color = button_hover_color
+        self._surface_color = surface_color
+        self._widget_width = width
+        self._widget_height = height
+        self._knob_width = max(12, switch_height - 4)
+        self._knob_y = max(1, (height - switch_height) / 2 + (switch_height - self._knob_width) / 2)
+        self._hover_enabled = hover
+        self._state = state
+        self._command = command
+        self._variable = variable
+        self._onvalue = onvalue
+        self._offvalue = offvalue
+        self._variable_callback_blocked = False
+        self._variable_callback_name = None
+        self._check_state = False
+        self._knob_x = None
 
-    def _button_position(self):
-        try:
-            coords = self._canvas.coords("slider_parts")
-            return coords[0] if coords else None
-        except (AttributeError, tk.TclError):
-            return None
+        super().__init__(
+            master,
+            width=width,
+            height=height,
+            bg_color=bg_color,
+            fg_color="transparent",
+            **kwargs,
+        )
 
-    def _update_button_border(self):
-        if not hasattr(self, "_canvas"):
-            return
-        border_color = "#007AFF" if self._check_state else "#8E8E93"
-        outline = self._apply_appearance_mode(border_color)
-        for item in self._canvas.find_withtag("slider_parts"):
-            if self._canvas.type(item) in {"oval", "rectangle", "polygon"}:
-                self._canvas.itemconfig(
-                    item,
-                    outline=outline,
-                    width=self._apply_widget_scaling(2),
-                )
+        self._canvas = tk.Canvas(
+            self,
+            width=switch_width,
+            height=switch_height,
+            bg=surface_color,
+            highlightthickness=0,
+            bd=0,
+            cursor="hand2" if hover else "",
+        )
+        self._canvas.place(relx=0.5, rely=0.5, anchor="center")
+        self._track_border_items = self._create_pill(0, 0, switch_width, switch_height)
+        self._track_fill_items = self._create_pill(1, 1, switch_width - 1, switch_height - 1)
+        self._knob_item = self._canvas.create_oval(
+            0, 0, self._knob_width, self._knob_width, width=2
+        )
+        self._canvas.bind("<Button-1>", self.toggle)
 
-    def _draw(self, no_color_updates=False):
-        super()._draw(no_color_updates)
-        self._update_button_border()
+        if self._variable is not None and self._variable != "":
+            self._variable_callback_name = self._variable.trace_add("write", self._variable_callback)
+            self._check_state = self._variable.get() == self._onvalue
 
-    def _on_enter(self, event=0):
-        super()._on_enter(event)
-        self._update_button_border()
+        self._render_state()
+        self._place_knob(self._position_for_state(self._check_state))
 
-    def _on_leave(self, event=0):
-        super()._on_leave(event)
-        self._update_button_border()
+    def _position_for_state(self, checked):
+        left = 2
+        right = self._switch_width - 2 - self._knob_width
+        return right if checked else left
 
-    def _animate_button(self, start_position, target_position, step=0):
+    def _create_pill(self, x1, y1, x2, y2):
+        radius = (y2 - y1) / 2
+        return (
+            self._canvas.create_oval(x1, y1, x1 + radius * 2, y2, width=0),
+            self._canvas.create_rectangle(x1 + radius, y1, x2 - radius, y2, width=0),
+            self._canvas.create_oval(x2 - radius * 2, y1, x2, y2, width=0),
+        )
+
+    def _place_knob(self, x):
+        self._knob_x = x
+        self._canvas.coords(
+            self._knob_item,
+            round(x),
+            2,
+            round(x) + self._knob_width,
+            2 + self._knob_width,
+        )
+
+    def _render_state(self):
+        if self._check_state:
+            track_color = self._switch_progress_color
+            track_border = self._switch_progress_color
+            knob_border = "#007AFF"
+        else:
+            track_color = "#E5E5EA"
+            track_border = self._switch_border_color
+            knob_border = "#8E8E93"
+        for item in self._track_border_items:
+            self._canvas.itemconfigure(item, fill=track_border)
+        for item in self._track_fill_items:
+            self._canvas.itemconfigure(item, fill=track_color)
+        self._canvas.itemconfigure(
+            self._knob_item,
+            fill=self._switch_button_color,
+            outline=knob_border,
+        )
+
+    def set_surface_color(self, color):
+        """Match the Canvas corners to the task card behind the switch."""
+        self._surface_color = color
+        self._canvas.configure(bg=color)
+
+    def _animate_knob(self, start_x, target_x, step=0):
         try:
             if not self.winfo_exists():
                 self._animation_after_id = None
                 return
             progress = min(1.0, (step + 1) / self._animation_steps)
             eased_progress = 1 - (1 - progress) ** 3
-            desired_position = start_position + (target_position - start_position) * eased_progress
-            current_position = self._button_position()
-            if current_position is not None:
-                self._canvas.move("slider_parts", desired_position - current_position, 0)
+            desired_x = start_x + (target_x - start_x) * eased_progress
+            self._place_knob(desired_x)
             if step + 1 < self._animation_steps:
                 self._animation_after_id = self.after(
                     self._animation_delay,
-                    lambda: self._animate_button(start_position, target_position, step + 1),
+                    lambda: self._animate_knob(start_x, target_x, step + 1),
                 )
             else:
+                self._knob_x = target_x
                 self._animation_after_id = None
         except tk.TclError:
             self._animation_after_id = None
 
-    def toggle(self, event=None):
-        if self._state != tk.NORMAL:
-            return
+    def _cancel_animation(self):
         if self._animation_after_id is not None:
             try:
                 self.after_cancel(self._animation_after_id)
@@ -98,23 +179,72 @@ class SmoothSwitch(ctk.CTkSwitch):
                 pass
             self._animation_after_id = None
 
-        start_position = self._button_position()
-        self.set(not self._check_state)
-        target_position = self._button_position()
-        if start_position is not None and target_position is not None:
-            self._canvas.move("slider_parts", start_position - target_position, 0)
-            self._animate_button(start_position, target_position)
+    def _set_state(self, state, animate=True):
+        self._cancel_animation()
+        start_x = self._knob_x
+        self._check_state = bool(state)
+        self._render_state()
+        target_x = self._position_for_state(self._check_state)
+        if start_x is None:
+            self._place_knob(target_x)
+            return
+        self._place_knob(start_x)
+        if animate and start_x is not None and target_x is not None and start_x != target_x:
+            self._animate_knob(start_x, target_x)
+        else:
+            self._place_knob(target_x)
 
+    def toggle(self, _event=None):
+        if self._state != tk.NORMAL:
+            return
+        self.set(not self._check_state)
         if self._command is not None:
             self._command()
 
-    def destroy(self):
-        if self._animation_after_id is not None:
+    def set(self, state, from_variable_callback=False):
+        self._set_state(state, animate=True)
+        if self._variable is not None and not from_variable_callback:
+            self._variable_callback_blocked = True
             try:
-                self.after_cancel(self._animation_after_id)
-            except tk.TclError:
+                self._variable.set(self._onvalue if self._check_state else self._offvalue)
+            finally:
+                self._variable_callback_blocked = False
+
+    def get(self):
+        return self._onvalue if self._check_state else self._offvalue
+
+    def select(self, from_variable_callback=False):
+        self.set(True, from_variable_callback)
+
+    def deselect(self, from_variable_callback=False):
+        self.set(False, from_variable_callback)
+
+    def _variable_callback(self, _var_name, _index, _mode):
+        if self._variable_callback_blocked:
+            return
+        if self._variable.get() == self._onvalue:
+            self.select(from_variable_callback=True)
+        elif self._variable.get() == self._offvalue:
+            self.deselect(from_variable_callback=True)
+
+    def configure(self, *args, **kwargs):
+        if "state" in kwargs:
+            self._state = kwargs.pop("state")
+            if hasattr(self, "_canvas"):
+                self._canvas.configure(state=self._state)
+        if "hover" in kwargs:
+            self._hover_enabled = kwargs.pop("hover")
+        super().configure(*args, **kwargs)
+
+    config = configure
+
+    def destroy(self):
+        self._cancel_animation()
+        if self._variable is not None and self._variable_callback_name is not None:
+            try:
+                self._variable.trace_remove("write", self._variable_callback_name)
+            except (tk.TclError, AttributeError):
                 pass
-            self._animation_after_id = None
         super().destroy()
 
 
@@ -161,6 +291,8 @@ class GUIManager:
         self.is_manual_run_active = False
         self.selected_task_name = None
         self._last_render_key = None
+        self.task_meta_labels = {}
+        self.task_switches = {}
 
         ctk.set_appearance_mode("Light")
         ctk.set_default_color_theme("blue")
@@ -969,11 +1101,12 @@ class GUIManager:
             justify="left",
         )
         meta_label.grid(row=1, column=0, sticky="ew", pady=(4, 0))
+        self.task_meta_labels[task.task_name] = meta_label
 
         controls = ctk.CTkFrame(card, fg_color="transparent")
         controls.grid(row=0, column=1, sticky="e", padx=(4, 14), pady=10)
         enabled_var = ctk.BooleanVar(value=task.enabled)
-        SmoothSwitch(
+        task_switch = SmoothSwitch(
             controls,
             text="",
             variable=enabled_var,
@@ -986,8 +1119,11 @@ class GUIManager:
             progress_color="#007AFF",
             button_color="#FFFFFF",
             button_hover_color="#E5F1FF",
+            surface_color="#EEF5FF" if selected else "#FFFFFF",
             command=lambda name=task.task_name, value=enabled_var: self._toggle_task_from_row(name, value.get()),
-        ).pack(anchor="e")
+        )
+        task_switch.pack(anchor="e")
+        self.task_switches[task.task_name] = task_switch
 
         self.task_cards[task.task_name] = (card, selected)
         self._bind_row_widget(card, task.task_name)
@@ -1001,6 +1137,18 @@ class GUIManager:
     def _status_label(status: str):
         return {"Success": "성공", "Fail": "실패", "Failed": "실패"}.get(status, str(status))
 
+    def _task_meta_text(self, task: Task):
+        meta = (
+            f"다음 실행 {self._format_next_run(self.cm.get_next_run_datetime(task))}"
+            if task.enabled
+            else "예약 중지"
+        )
+        if task.last_run_time:
+            meta += f"  ·  최근 실행 {self._format_last_run(task.last_run_time)}"
+        if task.last_run_status != "Not Started":
+            meta += f"  ·  결과 {self._status_label(task.last_run_status)}"
+        return meta
+
     def _bind_row_widget(self, widget, task_name: str):
         widget.bind("<Button-1>", lambda _event, name=task_name: self._select_task(name), add="+")
         widget.bind("<Double-Button-1>", lambda _event, name=task_name: self._edit_task_by_name(name), add="+")
@@ -1008,18 +1156,24 @@ class GUIManager:
     def _bind_card_hover(self, widget, card, task_name: str):
         widget.bind(
             "<Enter>",
-            lambda _event: card.configure(
-                fg_color="#E4F0FF" if self.selected_task_name == task_name else "#FBFBFD"
+            lambda _event: self._set_card_color(
+                card, task_name, "#E4F0FF" if self.selected_task_name == task_name else "#FBFBFD"
             ),
             add="+",
         )
         widget.bind(
             "<Leave>",
-            lambda _event: card.configure(
-                fg_color="#EEF5FF" if self.selected_task_name == task_name else "#FFFFFF"
+            lambda _event: self._set_card_color(
+                card, task_name, "#EEF5FF" if self.selected_task_name == task_name else "#FFFFFF"
             ),
             add="+",
         )
+
+    def _set_card_color(self, card, task_name: str, color: str):
+        card.configure(fg_color=color)
+        task_switch = getattr(self, "task_switches", {}).get(task_name)
+        if task_switch is not None:
+            task_switch.set_surface_color(color)
 
     def _select_task(self, task_name: str):
         if self._find_task_by_name(task_name) is None:
@@ -1027,8 +1181,13 @@ class GUIManager:
         self.selected_task_name = task_name
         for name, (card, _selected) in getattr(self, "task_cards", {}).items():
             selected = name == task_name
+            color = "#EEF5FF" if selected else "#FFFFFF"
+            self._set_card_color(
+                card,
+                name,
+                color,
+            )
             card.configure(
-                fg_color="#EEF5FF" if selected else "#FFFFFF",
                 border_color="#007AFF" if selected else "#E5E5EA",
             )
             self.task_cards[name] = (card, selected)
@@ -1041,7 +1200,22 @@ class GUIManager:
     def _toggle_task_from_row(self, task_name: str, enabled: bool):
         if self.cm.set_task_enabled(task_name, enabled):
             self.selected_task_name = task_name
-            self.refresh_list()
+            # Keep the row and its animation intact. Update only the affected
+            # card and detail values instead of rebuilding the task list.
+            task = self._selected_task()
+            detail_values = getattr(self, "_detail_value_labels", [])
+            meta_label = getattr(self, "task_meta_labels", {}).get(task_name)
+            if task is not None and meta_label is not None:
+                meta_label.configure(text=self._task_meta_text(task))
+            if task is not None and len(detail_values) >= 6:
+                detail_values[0].configure(
+                    text=self._format_next_run(self.cm.get_next_run_datetime(task))
+                    if task.enabled
+                    else "예약 중지"
+                )
+                detail_values[5].configure(text="활성" if task.enabled else "중지")
+            active_count = sum(task.enabled for task in self.cm.tasks)
+            self.task_count_label.configure(text=f"{len(self.cm.tasks)}개 작업 · {active_count}개 활성")
             logger.info("작업 예약 상태 변경: %s -> %s", task_name, enabled)
         else:
             self.refresh_list()
@@ -1212,6 +1386,8 @@ class GUIManager:
         for child in self.task_list_frame.winfo_children():
             child.destroy()
         self.task_cards = {}
+        self.task_meta_labels = {}
+        self.task_switches = {}
 
         display_tasks = self._sort_tasks_for_display(tasks)
         active_count = sum(1 for task in display_tasks if task.enabled)
